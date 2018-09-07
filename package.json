@@ -1,0 +1,27 @@
+{
+  "name": "node-boot",
+  "version": "0.0.1",
+  "description": "A JavaScript web framework",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dogzhang/node-boot.git"
+  },
+  "keywords": [
+    "nodejs"
+  ],
+  "author": "dogzhang",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/dogzhang/node-boot/issues"
+  },
+  "homepage": "https://github.com/dogzhang/node-boot#readme",
+  "dependencies": {
+    "koa": "^2.5.2",
+    "koa-body": "^4.0.4",
+    "koa-router": "^7.4.0"
+  }
+}
