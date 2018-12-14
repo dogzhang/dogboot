@@ -1,27 +1,46 @@
 {
-  "name": "node-boot",
-  "version": "0.0.1",
+  "name": "dogboot",
+  "version": "1.0.6",
   "description": "A JavaScript web framework",
-  "main": "index.js",
+  "main": "dist/lib/DogBoot.js",
+  "files": [
+    "dist/lib"
+  ],
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "prepublishOnly": "tsc"
+  },
+  "engines": {
+    "node": ">=8.14.0"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/dogzhang/node-boot.git"
+    "url": "https://github.com/dogzhang/dogboot.git"
   },
   "keywords": [
-    "nodejs"
+    "nodejs",
+    "typescript",
+    "koa"
   ],
   "author": "dogzhang",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/dogzhang/node-boot/issues"
+    "url": "https://github.com/dogzhang/dogboot/issues"
   },
-  "homepage": "https://github.com/dogzhang/node-boot#readme",
+  "homepage": "https://github.com/dogzhang/dogboot#readme",
   "dependencies": {
-    "koa": "^2.5.2",
+    "@types/koa": "^2.0.47",
+    "@types/koa-router": "^7.0.35",
+    "@types/koa-static": "^4.0.0",
+    "koa": "^2.6.2",
     "koa-body": "^4.0.4",
-    "koa-router": "^7.4.0"
+    "koa-router": "^7.4.0",
+    "koa-static": "^5.0.0",
+    "reflect-metadata": "^0.1.12"
+  },
+  "devDependencies": {
+    "@types/pug": "^2.0.4",
+    "pug": "^2.0.3",
+    "ts-node": "^7.0.1",
+    "typescript": "^3.2.2"
   }
 }

@@ -1,0 +1,11 @@
+{
+    "typescript.tsdk": "node_modules/typescript/lib",
+    "search.exclude": {
+        ".*": true,
+        "dist": true,
+        "package-lock.json": true
+    },
+    "files.exclude": {
+        "node_modules": true
+    }
+}
