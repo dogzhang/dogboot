@@ -4,13 +4,22 @@ import { UserService } from "./UserService";
 @Component()
 export class ItemService {
 
-    constructor(){
+    constructor() {
         console.log('ItemService', Math.random())
     }
 
     @Autowired(() => UserService)
-    userService:UserService;
+    userService: UserService;
     index() {
         console.log('ItemService')
+    }
+
+    async init() {
+        await new Promise<void>(resolve => {
+            setTimeout(function () {
+                resolve()
+            }, 3000)
+        })
+        console.log('init')
     }
 }

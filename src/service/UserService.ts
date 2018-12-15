@@ -4,12 +4,12 @@ import { ItemService } from "./ItemService";
 @Component()
 export class UserService {
 
-    constructor(){
+    constructor() {
         console.log('UserService', Math.random())
     }
 
     @Autowired(() => ItemService)
-    itemService:ItemService
+    itemService: ItemService
     index() {
         console.log('UserService')
     }

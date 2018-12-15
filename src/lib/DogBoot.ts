@@ -41,7 +41,7 @@ export class DogBootApplication {
                     if (action.$method) {
                         router[action.$method](action.$path, async (ctx: Koa.Context) => {
                             try {
-                                let instance = Utils.componentFactory(_Class.prototype.constructor, ctx)
+                                let instance = await Utils.componentFactory(_Class.prototype.constructor, ctx)
                                 let $params = instance[a].$params || []//使用@Bind...注册的参数，没有使用@Bind...装饰的参数将保持为null
                                 let $paramTypes: Function[] = instance[a].$paramTypes || []//全部的参数类型
                                 let params = $params.map((b: Function, idx: number) => {
@@ -65,7 +65,7 @@ export class DogBootApplication {
                                 let beforesOnAction = instance[a].$befores || []
                                 let befores = this.globalActionFiltersAtDoBefore.concat(beforesOnController, beforesOnAction)
                                 for (let before of befores) {
-                                    let filterInstance = Utils.componentFactory(before) as any
+                                    let filterInstance = await Utils.componentFactory(before, ctx) as any
                                     await filterInstance.do(actionContext)
                                     if (ctx.status != 404) {
                                         break
@@ -92,13 +92,13 @@ export class DogBootApplication {
                                 let aftersOnAction = instance[a].$afters || []
                                 let afters = this.globalActionFiltersAtDoAfter.concat(aftersOnController, aftersOnAction)
                                 for (let after of afters) {
-                                    let filterInstance = Utils.componentFactory(after) as any
+                                    let filterInstance = await Utils.componentFactory(after, ctx) as any
                                     await filterInstance.do(actionContext)
                                 }
                             } catch (err) {
                                 var exceptionFilter = _prototype[a].$exceptionFilter || _prototype.$exceptionFilter || this.globalExceptionFilter
                                 if (exceptionFilter) {
-                                    let exceptionFilterInstance = Utils.componentFactory(exceptionFilter, ctx) as any
+                                    let exceptionFilterInstance = await Utils.componentFactory(exceptionFilter, ctx) as any
                                     await exceptionFilterInstance.do(err, ctx)
                                 } else {
                                     throw err
@@ -151,56 +151,55 @@ class Utils {
         target.prototype.$paramTypes = paramTypes
     }
 
-    static componentFactory(target: Function, ctx: Koa.Context = null) {
+    static async componentFactory(target: Function, ctx: Koa.Context): Promise<any> {
         let lifetime = target.prototype.$lifetime as ComponentLifetime
         if (lifetime == null) {
             throw new Error(`${target.name}没有被注册为可自动解析的组件，请至少添加@Controller、@Component、@ActionFilter、@ExceptionFilter等装饰器中的一种`)
         }
         if (lifetime == ComponentLifetime.Transient) {
-            let instance = Reflect.construct(target, Utils.getParamInstances(target, ctx))
-            this.resolveAutowiredDependences(instance, ctx)
-            this.resolveConfigs(instance)
-            return instance
+            return await this.createInstance(new Map(), target, ctx)
         } else if (lifetime == ComponentLifetime.Scoped) {
             ctx.state.classInstanceMap = ctx.state.classInstanceMap || new Map()
-            let instance = ctx.state.classInstanceMap.get(target)
-            if (instance == null) {
-                instance = Reflect.construct(target, Utils.getParamInstances(target, ctx))
-                ctx.state.classInstanceMap = ctx.state.classInstanceMap || new Map()
-                ctx.state.classInstanceMap.set(target, instance)
-                this.resolveAutowiredDependences(instance, ctx)
-                this.resolveConfigs(instance)
-            }
-            return instance
+            return await this.createInstance(ctx.state.classInstanceMap, target, ctx)
         } else if (lifetime == ComponentLifetime.Singleton) {
-            let instance = classInstanceMap.get(target)
-            if (instance == null) {
-                instance = Reflect.construct(target, Utils.getParamInstances(target, ctx))
-                classInstanceMap.set(target, instance)
-                this.resolveAutowiredDependences(instance, ctx)
-                this.resolveConfigs(instance)
-            }
-            return instance
+            return await this.createInstance(classInstanceMap, target, ctx)
         }
     }
 
-    static getParamInstances(target: Function, ctx: Koa.Context) {
-        let paramTypes = target.prototype.$paramTypes
-        return paramTypes.map((val: Function) => {
-            return Utils.componentFactory(val as any, ctx)
-        })
+    static async createInstance(containerMap: Map<Function, any>, target: Function, ctx: Koa.Context): Promise<any> {
+        let instance = containerMap.get(target)
+        if (instance == null) {
+            instance = Reflect.construct(target, await Utils.getParamInstances(target, ctx))
+            containerMap.set(target, instance)
+            await this.resolveAutowiredDependences(instance, ctx)
+            this.resolveConfigs(instance)
+            if (instance.init && instance.init instanceof Function) {
+                await instance.init()
+            }
+        }
+        return instance
     }
 
-    static resolveAutowiredDependences(instance, ctx: Koa.Context) {
+    static async getParamInstances(target: Function, ctx: Koa.Context): Promise<any[]> {
+        let paramTypes = target.prototype.$paramTypes
+        let paramInstances = []
+        for (let paramType of paramTypes) {
+            let paramInstance = await Utils.componentFactory(paramType as any, ctx)
+            paramInstances.push(paramInstance)
+        }
+        return paramInstances
+    }
+
+    static async resolveAutowiredDependences(instance, ctx: Koa.Context) {
         let target = instance.__proto__.constructor
         let autowiredMap = target.prototype.$autowiredMap
         if (autowiredMap) {
             for (let [k, v] of autowiredMap) {
                 if (v.name) {
-                    instance[k] = Utils.componentFactory(v as any, ctx)
+                    instance[k] = await Utils.componentFactory(v as any, ctx)
                 } else {
                     let _Class = v()
-                    instance[k] = Utils.componentFactory(_Class as any, ctx)
+                    instance[k] = await Utils.componentFactory(_Class as any, ctx)
                 }
             }
         }
