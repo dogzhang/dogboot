@@ -50,7 +50,7 @@ export class DogBootApplication {
                                     let typeSpecified = oldValArr[1]
                                     let toType = $paramTypes[idx]
                                     if (typeSpecified && toType) {
-                                        return Utils.getTypeSpecifiedValue(toType, oldVal)
+                                        return DogUtils.getTypeSpecifiedValue(toType, oldVal)
                                     } else {
                                         return oldVal
                                     }
@@ -227,9 +227,9 @@ class Utils {
                     return
                 }
                 if (toValueMap.isArray) {
-                    instance[k] = oldVal.map(a => this.getTypeSpecifiedValue(toValueMap.type, a))
+                    instance[k] = oldVal.map(a => DogUtils.getTypeSpecifiedValue(toValueMap.type, a))
                 } else {
-                    instance[k] = this.getTypeSpecifiedValue(toValueMap.type, oldVal)
+                    instance[k] = DogUtils.getTypeSpecifiedValue(toValueMap.type, oldVal)
                 }
             }
         }
@@ -248,31 +248,6 @@ class Utils {
             }
         })
         return fileList
-    }
-
-    static getTypeSpecifiedValue(type: Function, oldVal: any) {
-        if (oldVal == null) {
-            return null
-        }
-        if (type == Number || type == String || type == Boolean) {
-            return type(oldVal)
-        }
-        if (type == Date) {
-            return new Date(oldVal)
-        }
-        let newVal = Reflect.construct(type, [])
-        Object.assign(newVal, oldVal)
-        type.prototype.$fields && Object.entries(type.prototype.$fields).forEach(([k, v]) => {
-            if (newVal.hasOwnProperty(k)) {
-                let typeSpecifiedMap: TypeSpecifiedMap = v as TypeSpecifiedMap
-                if (typeSpecifiedMap.typeSpecifiedType == TypeSpecifiedType.General) {
-                    newVal[k] = this.getTypeSpecifiedValue(typeSpecifiedMap.type, newVal[k])
-                } else if (typeSpecifiedMap.typeSpecifiedType == TypeSpecifiedType.Array) {
-                    newVal[k] = newVal[k].map(a => this.getTypeSpecifiedValue(typeSpecifiedMap.type, a))
-                }
-            }
-        })
-        return newVal
     }
 
     static getValidator(obj: any) {
@@ -301,6 +276,33 @@ class Utils {
                 await func(fieldVal)
             }
         }
+    }
+}
+
+export class DogUtils {
+    static getTypeSpecifiedValue<T>(type: Function, oldVal: any): T {
+        if (oldVal == null) {
+            return null
+        }
+        if (type == Number || type == String || type == Boolean) {
+            return type(oldVal)
+        }
+        if (type == Date) {
+            return new Date(oldVal) as any
+        }
+        let newVal = Reflect.construct(type, [])
+        Object.assign(newVal, oldVal)
+        type.prototype.$fields && Object.entries(type.prototype.$fields).forEach(([k, v]) => {
+            if (newVal.hasOwnProperty(k)) {
+                let typeSpecifiedMap: TypeSpecifiedMap = v as TypeSpecifiedMap
+                if (typeSpecifiedMap.typeSpecifiedType == TypeSpecifiedType.General) {
+                    newVal[k] = this.getTypeSpecifiedValue(typeSpecifiedMap.type, newVal[k])
+                } else if (typeSpecifiedMap.typeSpecifiedType == TypeSpecifiedType.Array) {
+                    newVal[k] = newVal[k].map(a => this.getTypeSpecifiedValue(typeSpecifiedMap.type, a))
+                }
+            }
+        })
+        return newVal
     }
 }
 
