@@ -7,14 +7,16 @@ import * as Koa from 'koa'
 import 'reflect-metadata'
 import { Server } from 'net';
 
+let serviceMap: Map<any, any> = new Map()
+let classInstanceMap: Map<Function, any> = new Map()
+
 export class DogBootApplication {
     app: Koa
     server: Server
     private port: number = 3000
     private globalExceptionFilter: Function
     private render: Function
-    private globalActionFiltersAtDoBefore: Function[] = []
-    private globalActionFiltersAtDoAfter: Function[] = []
+    private globalActionFilters: Function[] = []
     constructor(private controllerPath: string) {
         this.app = new Koa()
         return this
@@ -41,6 +43,7 @@ export class DogBootApplication {
                     if (action.$method) {
                         router[action.$method](action.$path, async (ctx: Koa.Context) => {
                             try {
+                                ctx.state.app = this
                                 let instance = await Utils.componentFactory(_Class.prototype.constructor, ctx)
                                 let $params = instance[a].$params || []//使用@Bind...注册的参数，没有使用@Bind...装饰的参数将保持为null
                                 let $paramTypes: Function[] = instance[a].$paramTypes || []//全部的参数类型
@@ -61,12 +64,18 @@ export class DogBootApplication {
 
                                 let actionContext = new ActionFilterContext(ctx, params, $paramTypes, _Class, a)
 
-                                let beforesOnController = _prototype.$befores = _prototype.$befores || []
-                                let beforesOnAction = instance[a].$befores || []
-                                let befores = this.globalActionFiltersAtDoBefore.concat(beforesOnController, beforesOnAction)
-                                for (let before of befores) {
-                                    let filterInstance = await Utils.componentFactory(before, ctx) as any
-                                    await filterInstance.do(actionContext)
+                                let actionFiltersOnController = _prototype.$actionFilters = _prototype.$actionFilters || []
+                                let actionFiltersOnAction = instance[a].$actionFilters || []
+                                let actionFilters = this.globalActionFilters.concat(actionFiltersOnController, actionFiltersOnAction)
+                                let actionFilterAndInstances: [Function, any][] = []
+                                for (let actionFilter of actionFilters) {
+                                    let handlerName = actionFilter.prototype.$actionHandlerMap.get(DoBefore)
+                                    if (!handlerName) {
+                                        continue
+                                    }
+                                    let filterInstance = await Utils.componentFactory(actionFilter, ctx) as any
+                                    actionFilterAndInstances.push([actionFilter, filterInstance])
+                                    await filterInstance[handlerName](actionContext)
                                     if (ctx.status != 404) {
                                         break
                                     }
@@ -88,21 +97,30 @@ export class DogBootApplication {
                                     }
                                 }
 
-                                let aftersOnController = _prototype.$afters = _prototype.$afters || []
-                                let aftersOnAction = instance[a].$afters || []
-                                let afters = this.globalActionFiltersAtDoAfter.concat(aftersOnController, aftersOnAction)
-                                for (let after of afters) {
-                                    let filterInstance = await Utils.componentFactory(after, ctx) as any
-                                    await filterInstance.do(actionContext)
+                                for (let [actionFilter, filterInstance] of actionFilterAndInstances.reverse()) {
+                                    let handlerName = actionFilter.prototype.$actionHandlerMap.get(DoAfter)
+                                    if (!handlerName) {
+                                        continue
+                                    }
+                                    await filterInstance[handlerName](actionContext)
                                 }
                             } catch (err) {
-                                var exceptionFilter = _prototype[a].$exceptionFilter || _prototype.$exceptionFilter || this.globalExceptionFilter
-                                if (exceptionFilter) {
-                                    let exceptionFilterInstance = await Utils.componentFactory(exceptionFilter, ctx) as any
-                                    await exceptionFilterInstance.do(err, ctx)
-                                } else {
+                                let exceptionFilter = _prototype[a].$exceptionFilter || _prototype.$exceptionFilter || this.globalExceptionFilter
+                                if (!exceptionFilter) {
                                     throw err
                                 }
+                                let exceptionFilterInstance = await Utils.componentFactory(exceptionFilter, ctx) as any
+                                if (!exceptionFilter.prototype.$exceptionHandlerMap) {
+                                    throw err
+                                }
+                                let handlerName = exceptionFilter.prototype.$exceptionHandlerMap.get(err.__proto__.constructor)
+                                if (!handlerName) {
+                                    handlerName = exceptionFilter.prototype.$exceptionHandlerMap.get(Error)
+                                }
+                                if (!handlerName) {
+                                    throw err
+                                }
+                                await exceptionFilterInstance[handlerName](err, ctx)
                             }
                         })
                     }
@@ -110,6 +128,10 @@ export class DogBootApplication {
                 this.app.use(router.routes())
             })
         })
+    }
+    addService(key: any, service: any) {
+        serviceMap.set(key, service)
+        return this
     }
     setPort(port: number) {
         this.port = port
@@ -119,16 +141,12 @@ export class DogBootApplication {
         this.render = render
         return this
     }
-    handleException(exceptionFilter: Function) {
+    useExceptionFilter(exceptionFilter: Function) {
         this.globalExceptionFilter = exceptionFilter
         return this
     }
-    doBefore(actionFilter: Function) {
-        this.globalActionFiltersAtDoBefore.push(actionFilter)
-        return this
-    }
-    doAfter(actionFilter: Function) {
-        this.globalActionFiltersAtDoAfter.push(actionFilter)
+    useActionFilter(actionFilter: Function) {
+        this.globalActionFilters.push(actionFilter)
         return this
     }
     run() {
@@ -137,8 +155,6 @@ export class DogBootApplication {
         return this
     }
 }
-
-let classInstanceMap: Map<Function, any> = new Map()
 
 class Utils {
     static markAsComponent(target: Function, lifetime: ComponentLifetime) {
@@ -154,27 +170,32 @@ class Utils {
     static async componentFactory(target: Function, ctx: Koa.Context): Promise<any> {
         let lifetime = target.prototype.$lifetime as ComponentLifetime
         if (lifetime == null) {
-            throw new Error(`${target.name}没有被注册为可自动解析的组件，请至少添加@Controller、@Component、@ActionFilter、@ExceptionFilter等装饰器中的一种`)
+            throw new Error(`${target.name}没有被注册为可自动解析的组件，请至少添加@Controller、@Component、@ActionFilter、@ExceptionFilter、@Config等装饰器中的一种`)
         }
         if (lifetime == ComponentLifetime.Transient) {
-            return await this.createInstance(new Map(), target, ctx)
+            return await this.createComponentInstance(new Map(), target, ctx)
         } else if (lifetime == ComponentLifetime.Scoped) {
             ctx.state.classInstanceMap = ctx.state.classInstanceMap || new Map()
-            return await this.createInstance(ctx.state.classInstanceMap, target, ctx)
+            return await this.createComponentInstance(ctx.state.classInstanceMap, target, ctx)
         } else if (lifetime == ComponentLifetime.Singleton) {
-            return await this.createInstance(classInstanceMap, target, ctx)
+            return await this.createComponentInstance(classInstanceMap, target, ctx)
         }
     }
 
-    static async createInstance(containerMap: Map<Function, any>, target: Function, ctx: Koa.Context): Promise<any> {
+    static async createComponentInstance(containerMap: Map<Function, any>, target: Function, ctx: Koa.Context): Promise<any> {
         let instance = containerMap.get(target)
         if (instance == null) {
-            instance = Reflect.construct(target, await Utils.getParamInstances(target, ctx))
-            containerMap.set(target, instance)
-            await this.resolveAutowiredDependences(instance, ctx)
-            this.resolveConfigs(instance)
-            if (instance.init && instance.init instanceof Function) {
-                await instance.init()
+            if (target.prototype.$isConfig) {
+                instance = this.getConfigValue(target)
+                containerMap.set(target, instance)
+            } else {
+                instance = Reflect.construct(target, await Utils.getParamInstances(target, ctx))
+                containerMap.set(target, instance)
+                await this.resolveAutowiredDependences(instance, ctx)
+                let initMethod = target.prototype.$initMethod
+                if (initMethod) {
+                    await instance[initMethod]()
+                }
             }
         }
         return instance
@@ -205,33 +226,19 @@ class Utils {
         }
     }
 
-    static resolveConfigs(instance) {
-        let target = instance.__proto__.constructor
-        let valueMap = target.prototype.$valueMap
-        if (valueMap) {
-            for (let [k, v] of valueMap) {
-                let toValueMap = v as ConfigMap
-                let oldVal = require(path.join(process.cwd(), 'config.json'))
-                let sectionArr = toValueMap.key.split('.').filter(a => a)
-                for (let a of sectionArr) {
-                    if (oldVal == null) {
-                        instance[k] = null
-                        return
-                    }
-                    oldVal = oldVal[a]
-                }
-
-                if (oldVal == null) {
-                    instance[k] = null
-                    return
-                }
-                if (toValueMap.isArray) {
-                    instance[k] = oldVal.map(a => DogUtils.getTypeSpecifiedValue(toValueMap.type, a))
-                } else {
-                    instance[k] = DogUtils.getTypeSpecifiedValue(toValueMap.type, oldVal)
-                }
+    static getConfigValue(target: Function) {
+        let oldVal = require(path.join(process.cwd(), 'config.json'))
+        let sectionArr = target.prototype.$configField.split('.').filter((a: any) => a)
+        for (let a of sectionArr) {
+            if (oldVal == null) {
+                return null
             }
+            oldVal = oldVal[a]
         }
+        if (oldVal == null) {
+            return null
+        }
+        return DogUtils.getTypeSpecifiedValue(target, oldVal)
     }
 
     static getFileListInFolder(dirPath: string) {
@@ -335,21 +342,21 @@ export function Controller(path: string = null, lifetime: ComponentLifetime = Co
 
 export function ActionFilter(lifetime: ComponentLifetime = ComponentLifetime.Singleton) {
     return function (target: Function) {
-        if (!(target.prototype.do instanceof Function)) {
-            console.error(`过滤器${target.name}中缺少必要的do(actionFilterContext: ActionFilterContext)方法`)
-            process.abort()
-        }
         Utils.markAsComponent(target, lifetime)
     }
 }
 
 export function ExceptionFilter(lifetime: ComponentLifetime = ComponentLifetime.Singleton) {
     return function (target: Function) {
-        if (!(target.prototype.do instanceof Function)) {
-            console.error(`过滤器${target.name}中缺少必要的do(err: Error, ctx: Context)方法`)
-            process.abort()
-        }
         Utils.markAsComponent(target, lifetime)
+    }
+}
+
+export function Config(field: string = null) {
+    return function (target: Function) {
+        target.prototype.$isConfig = true
+        target.prototype.$configField = field
+        Utils.markAsComponent(target, ComponentLifetime.Singleton)
     }
 }
 
@@ -362,24 +369,6 @@ export function Autowired(type: Function) {
         target.$autowiredMap = target.$autowiredMap || new Map()
         target.$autowiredMap.set(name, type)
     }
-}
-
-export function Config(key: string, type: Function, isArray: boolean = false) {
-    return function (target, name: string) {
-        target.$valueMap = target.$valueMap || new Map()
-        target.$valueMap.set(name, new ConfigMap(key, type, isArray))
-    }
-}
-
-class ConfigMap {
-    constructor(key: string, type: Function, isArray: boolean = false) {
-        this.key = key
-        this.type = type
-        this.isArray = isArray
-    }
-    key: string
-    type: Function
-    isArray: boolean = false
 }
 
 export function Mapping(type: string = 'get', path: string = null) {
@@ -435,6 +424,11 @@ export function BindPath(key: string) {
 export function BindBody(target, name: string, index: number) {
     target[name].$params = target[name].$params || []
     target[name].$params[index] = (ctx: Koa.Context) => [ctx.request.body, true]
+}
+
+export function BindApp(target, name: string, index: number) {
+    target[name].$params = target[name].$params || []
+    target[name].$params[index] = (ctx: Koa.Context) => [ctx.state.app, true]
 }
 
 export function TypeSpecified(target, name: string) {
@@ -638,33 +632,30 @@ export class ActionFilterContext {
     public readonly action: string
 }
 
-export function DoBefore(actionFilter: Function) {
+export function UseActionFilter(actionFilter: Function) {
     return function (target, name: string = null) {
         if (name == null) {
-            target.prototype.$befores = target.prototype.$befores || []
-            target.prototype.$befores.push(actionFilter)
+            target.prototype.$actionFilters = target.prototype.$actionFilters || []
+            target.prototype.$actionFilters.unshift(actionFilter)
         } else {
             let action = target[name]
-            action.$befores = action.$befores || []
-            action.$befores.push(actionFilter)
+            action.$actionFilters = action.$actionFilters || []
+            action.$actionFilters.unshift(actionFilter)
         }
     }
 }
 
-export function DoAfter(actionFilter: Function) {
-    return function (target, name: string = null) {
-        if (name == null) {
-            target.prototype.$afters = target.prototype.$afters || []
-            target.prototype.$afters.push(actionFilter)
-        } else {
-            let action = target[name]
-            action.$afters = action.$afters || []
-            action.$afters.push(actionFilter)
-        }
-    }
+export function DoBefore(target, name: string) {
+    target.$actionHandlerMap = target.$actionHandlerMap || new Map()
+    target.$actionHandlerMap.set(DoBefore, name)
 }
 
-export function HandleException(exceptionFilter: Function) {
+export function DoAfter(target, name: string) {
+    target.$actionHandlerMap = target.$actionHandlerMap || new Map()
+    target.$actionHandlerMap.set(DoAfter, name)
+}
+
+export function UseExceptionFilter(exceptionFilter: Function) {
     return function (target, name: string = null) {
         if (name == null) {
             target.prototype.$exceptionFilter = exceptionFilter
@@ -672,5 +663,23 @@ export function HandleException(exceptionFilter: Function) {
             let action = target[name]
             action.$exceptionFilter = exceptionFilter
         }
+    }
+}
+
+export function ExceptionHandler(type: Function) {
+    return function (target, name: string) {
+        target.$exceptionHandlerMap = target.$exceptionHandlerMap || new Map()
+        target.$exceptionHandlerMap.set(type, name)
+    }
+}
+
+export function Init(target, name: string) {
+    target.$initMethod = name
+}
+
+@Component()
+export class ServiceContainer {
+    getService<T>(key: any): T {
+        return serviceMap.get(key)
     }
 }

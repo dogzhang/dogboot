@@ -6,7 +6,8 @@
     "target": "es6",
     "lib": ["es2017"],
     "outDir": "dist",
-    "declaration": true
+    "declaration": true,
+    "watch": true
   },
   "include": ["src"]
 }

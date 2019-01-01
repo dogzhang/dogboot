@@ -13,13 +13,4 @@ export class ItemService {
     index() {
         console.log('ItemService')
     }
-
-    async init() {
-        await new Promise<void>(resolve => {
-            setTimeout(function () {
-                resolve()
-            }, 3000)
-        })
-        console.log('init')
-    }
 }

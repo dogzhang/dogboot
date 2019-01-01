@@ -1,39 +1,29 @@
-import { Controller, GetMapping, PostMapping, ViewResult, Autowired, BindContext, BindQuery, BindBody, BindPath, Config, DoBefore, HandleException } from "../lib/DogBoot";
-import { Context } from "koa";
-import { HomeService } from "../service/HomeService";
+import { Controller, GetMapping, PostMapping, ViewResult, BindQuery, BindBody, UseActionFilter } from "../lib/DogBoot";
 import { JsonResultUtil } from "../common/JsonResultUtil";
-import { ItemService } from "../service/ItemService";
 import { SendIM } from "../model/home/SendIM";
-import { AuthorizationFilter } from "../filter/AuthorizationFilter";
-import { MyExceptionFilter } from "../filter/MyExceptionFilter";
+import { ActionFilter2 } from "../filter/ActionFilter2";
+import { ActionFilter3 } from "../filter/ActionFilter3";
+import { ActionFilter4 } from "../filter/ActionFilter4";
+import { ActionFilter5 } from "../filter/ActionFilter5";
 
 @Controller('/home')
-@HandleException(MyExceptionFilter)
+@UseActionFilter(ActionFilter2)
+@UseActionFilter(ActionFilter3)
 export class HomeController {
-    constructor(private homeService: HomeService) {
-        console.log('HomeController', Math.random())
-    }
-
-    @Config('password', String)
-    password: string
-
     @GetMapping('/index/:id')
-    @DoBefore(AuthorizationFilter)
-    async index(@BindQuery('a') a: number, @BindPath('id') id: Date, @BindContext ctx: Context) {
-        ctx.body = this.password
+    @UseActionFilter(ActionFilter4)
+    @UseActionFilter(ActionFilter5)
+    async index(@BindQuery('a') a: number) {
+        return JsonResultUtil.ok(a)
     }
 
     @PostMapping('/send')
-    async send(@BindBody im: SendIM, @BindQuery('a') a: number, @BindContext ctx: Context) {
+    async send(@BindBody im: SendIM) {
         return JsonResultUtil.ok(im)
     }
 
-    @Autowired(ItemService)
-    itemService: ItemService
-
     @GetMapping('/view')
     async view() {
-        this.itemService.index()
         return new ViewResult({ name: 'zhang' })
     }
 }
