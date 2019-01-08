@@ -6,7 +6,8 @@ import { MyExceptionFilter } from './filter/MyExceptionFilter';
 import { ActionFilter0 } from './filter/ActionFilter0';
 import { ActionFilter1 } from './filter/ActionFilter1';
 
-var viewPath = path.join(process.cwd(), 'view')
+let appRoot = require('app-root-path').path
+var viewPath = path.join(appRoot, 'view')
 
 new DogBootApplication(path.join(__dirname, 'controller'))
     .addService('asd', 123)

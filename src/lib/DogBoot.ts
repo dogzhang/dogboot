@@ -7,6 +7,7 @@ import * as Koa from 'koa'
 import 'reflect-metadata'
 import { Server } from 'net';
 
+let appRoot = require('app-root-path').path
 let serviceMap: Map<any, any> = new Map()
 let classInstanceMap: Map<Function, any> = new Map()
 
@@ -23,10 +24,13 @@ export class DogBootApplication {
     }
     private build() {
         this.app.use(koaStatic(
-            path.join(process.cwd(), 'public')
+            path.join(appRoot, 'public')
         ))
         this.app.use(koaBody())
         Utils.getFileListInFolder(this.controllerPath).forEach(async (filePath: string) => {
+            if (filePath.endsWith('.d.ts')) {
+                return
+            }
             let _Module = require(filePath)
             Object.values(_Module).filter(a => a instanceof Function).forEach((_Class: Function) => {
                 let _prototype = _Class.prototype
@@ -227,7 +231,7 @@ class Utils {
     }
 
     static getConfigValue(target: Function) {
-        let oldVal = require(path.join(process.cwd(), 'config.json'))
+        let oldVal = require(path.join(appRoot, 'config.json'))
         let sectionArr = target.prototype.$configField.split('.').filter((a: any) => a)
         for (let a of sectionArr) {
             if (oldVal == null) {
