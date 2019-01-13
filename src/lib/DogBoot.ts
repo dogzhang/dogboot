@@ -65,7 +65,6 @@ export class DogBootApplication {
                                 for (let b of params) {
                                     await Utils.validateField(b)
                                 }
-
                                 let actionContext = new ActionFilterContext(ctx, params, $paramTypes, _Class, a)
 
                                 let actionFiltersOnController = _prototype.$actionFilters = _prototype.$actionFilters || []
@@ -301,18 +300,22 @@ export class DogUtils {
             return new Date(oldVal) as any
         }
         let newVal = Reflect.construct(type, [])
-        Object.assign(newVal, oldVal)
         type.prototype.$fields && Object.entries(type.prototype.$fields).forEach(([k, v]) => {
-            if (newVal.hasOwnProperty(k)) {
-                let typeSpecifiedMap: TypeSpecifiedMap = v as TypeSpecifiedMap
-                if (typeSpecifiedMap.typeSpecifiedType == TypeSpecifiedType.General) {
-                    newVal[k] = this.getTypeSpecifiedValue(typeSpecifiedMap.type, newVal[k])
-                } else if (typeSpecifiedMap.typeSpecifiedType == TypeSpecifiedType.Array) {
-                    newVal[k] = newVal[k].map(a => this.getTypeSpecifiedValue(typeSpecifiedMap.type, a))
-                }
+            let typeSpecifiedMap: TypeSpecifiedMap = v as TypeSpecifiedMap
+            if (typeSpecifiedMap.typeSpecifiedType == TypeSpecifiedType.General) {
+                newVal[k] = this.getTypeSpecifiedValue(typeSpecifiedMap.type, oldVal[typeSpecifiedMap.sourceName])
+            } else if (typeSpecifiedMap.typeSpecifiedType == TypeSpecifiedType.Array) {
+                newVal[k] = oldVal[typeSpecifiedMap.sourceName].map(a => this.getTypeSpecifiedValue(typeSpecifiedMap.type, a))
             }
         })
         return newVal
+    }
+
+    static getTypeSpecifiedValueArray<T>(type: Function, oldVal: any[]): T[] {
+        if (oldVal == null) {
+            return null
+        }
+        return oldVal.map(a => this.getTypeSpecifiedValue(type, a))
     }
 }
 
@@ -435,16 +438,35 @@ export function BindApp(target, name: string, index: number) {
     target[name].$params[index] = (ctx: Koa.Context) => [ctx.state.app, true]
 }
 
-export function TypeSpecified(target, name: string) {
-    target.$fields = target.$fields || {}
-    target.$fields[name] = new TypeSpecifiedMap(TypeSpecifiedType.General, Reflect.getMetadata('design:type', target, name))
-}
-
-export function TypeSpecifiedArray(type: Function) {
+export function Field(sourceNameOrGetSourceNameFunc: string | ((targetName: string) => string) = null) {
     return function (target, name: string) {
         target.$fields = target.$fields || {}
-        target.$fields[name] = new TypeSpecifiedMap(TypeSpecifiedType.Array, type)
+        target.$fields[name] = new TypeSpecifiedMap(TypeSpecifiedType.General, Reflect.getMetadata('design:type', target, name), getSourceName(name, sourceNameOrGetSourceNameFunc))
     }
+}
+
+export function FieldArray(type: Function, sourceNameOrGetSourceNameFunc: string | ((targetName: string) => string) = null) {
+    return function (target, name: string) {
+        target.$fields = target.$fields || {}
+        target.$fields[name] = new TypeSpecifiedMap(TypeSpecifiedType.Array, type, getSourceName(name, sourceNameOrGetSourceNameFunc))
+    }
+}
+
+function getSourceName(targetName: string, sourceNameOrGetSourceNameFunc: string | Function = null) {
+    if (!sourceNameOrGetSourceNameFunc) {
+        return targetName
+    }
+    if (typeof sourceNameOrGetSourceNameFunc == 'string') {
+        return sourceNameOrGetSourceNameFunc
+    }
+    return (sourceNameOrGetSourceNameFunc as Function)(targetName)
+}
+
+export function Underscore(targetName: string): string {
+    if (!targetName) {
+        return targetName
+    }
+    return targetName.replace(/[A-Z]/g, a => '_' + a.toLowerCase()).replace(/^_/, '')
 }
 
 enum TypeSpecifiedType {
@@ -453,12 +475,14 @@ enum TypeSpecifiedType {
 }
 
 class TypeSpecifiedMap {
-    constructor(typeSpecifiedType: TypeSpecifiedType, type: Function) {
+    constructor(typeSpecifiedType: TypeSpecifiedType, type: Function, sourceName: string) {
         this.typeSpecifiedType = typeSpecifiedType
         this.type = type
+        this.sourceName = sourceName
     }
     typeSpecifiedType: TypeSpecifiedType
     type: Function
+    sourceName: string
 }
 
 export function Valid(target, name: string) {

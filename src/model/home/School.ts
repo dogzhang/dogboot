@@ -1,14 +1,14 @@
-import { TypeSpecified, TypeSpecifiedArray, Max } from "../../lib/DogBoot";
+import { Field, FieldArray, Max } from "../../lib/DogBoot";
 import { Email } from "./Email";
 
 export class School {
-    @TypeSpecified
+    @Field()
     @Max(0)
     id: number
 
-    @TypeSpecified
+    @Field()
     name: string
 
-    @TypeSpecifiedArray(Email)
+    @FieldArray(Email)
     emails: Email[]
 }

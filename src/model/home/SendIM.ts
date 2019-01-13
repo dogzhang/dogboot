@@ -1,28 +1,31 @@
-import { TypeSpecified, TypeSpecifiedArray, Range, MinLength, Max, Valid, NotNull } from "../../lib/DogBoot";
+import { Field, FieldArray, Range, MinLength, Max, Valid, NotNull, Underscore } from "../../lib/DogBoot";
 import { School } from "./School";
 import { Email } from "./Email";
 
 export class SendIM {
-    @TypeSpecified
+    @Field()
     @NotNull()
     id: number
 
-    @TypeSpecified
+    @Field()
     name: string
 
-    @TypeSpecified
+    @Field(Underscore)
+    nickName: string
+
+    @Field()
     age: number
 
-    @TypeSpecified
+    @Field()
     birth: Date
 
-    @TypeSpecified
+    @Field('online1')
     online: boolean
 
-    @TypeSpecified
+    @Field()
     school: School
 
-    @TypeSpecifiedArray(Email)
+    @FieldArray(Email)
     @Valid
     emails: Email[]
 }
