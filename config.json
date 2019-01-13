@@ -1,29 +1,8 @@
 {
-    "redis": {
-        "host": "120.78.195.182",
-        "port": 6379,
-        "password": "key.175243982$0827",
-        "db": 1
-    },
     "redisKey": {
         "accessToken": "SHOP:ACCESSTOKEN",
         "ticket": "SELLER:TICKET:",
         "shopLastOnline": "SHOP:LASTONLINE:",
         "qrcodeForInviteSeller": "SHOP:QRCODEFORINVITESELLER:"
-    },
-    "mail": {
-        "host": "smtp.mxhichina.com",
-        "username": "dmall@dogzhang.com",
-        "password": "A234sd6789Z",
-        "port": 80
-    },
-    "qiniu": {
-        "ak": "dPAPCuA8reJNRN8r3DGqo8pGVCTZknJqzcW19TR-",
-        "sk": "3-O8sx0gnXxa_ZGP6bkM7-2x-zAklGU2SjZQizAg",
-        "bucket": "daigou"
-    },
-    "wx": {
-        "appid": "wx9c79cd1057891e89",
-        "appkey": "33a203cf0f96a8987f364116c8224e0d"
     }
 }
