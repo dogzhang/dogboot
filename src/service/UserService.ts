@@ -1,11 +1,10 @@
-import { Component, Autowired, ServiceContainer } from "../lib/DogBoot";
+import { Component, Autowired } from "../lib/DogBoot";
 import { ItemService } from "./ItemService";
 
 @Component()
 export class UserService {
 
-    constructor(private readonly serviceContainer: ServiceContainer) {
-        console.log(serviceContainer.getService<number>('asd'))
+    constructor() {
         console.log('UserService', Math.random())
     }
 

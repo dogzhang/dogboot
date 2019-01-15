@@ -1,12 +1,13 @@
 {
   "name": "dogboot",
-  "version": "1.0.9",
+  "version": "1.1.1",
   "description": "A JavaScript web framework",
   "main": "dist/lib/DogBoot.js",
   "files": [
     "dist/lib"
   ],
   "scripts": {
+    "tsc": "tsc -w",
     "prepublishOnly": "tsc"
   },
   "engines": {
@@ -28,19 +29,19 @@
   },
   "homepage": "https://github.com/dogzhang/dogboot#readme",
   "dependencies": {
-    "@types/koa": "^2.0.47",
-    "@types/koa-router": "^7.0.35",
-    "@types/koa-static": "^4.0.0",
     "app-root-path": "^2.1.0",
     "koa": "^2.6.2",
     "koa-body": "^4.0.4",
     "koa-router": "^7.4.0",
     "koa-static": "^5.0.0",
+    "pug": "^2.0.3",
     "reflect-metadata": "^0.1.12"
   },
   "devDependencies": {
+    "@types/koa": "^2.0.47",
+    "@types/koa-router": "^7.0.35",
+    "@types/koa-static": "^4.0.0",
     "@types/pug": "^2.0.4",
-    "pug": "^2.0.3",
     "ts-node": "^7.0.1",
     "typescript": "^3.2.2"
   }

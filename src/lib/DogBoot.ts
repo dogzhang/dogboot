@@ -7,9 +7,15 @@ import * as Koa from 'koa'
 import 'reflect-metadata'
 import { Server } from 'net';
 
-let appRoot = require('app-root-path').path
-let serviceMap: Map<any, any> = new Map()
-let classInstanceMap: Map<Function, any> = new Map()
+let componentInstanceMap: Map<any, any> = new Map()
+let appRoot: string
+
+export interface DogBootApplicationConfig {
+    appRoot: string
+    controllerPath: string
+    startUpPath?: string
+    publicPath?: string
+}
 
 export class DogBootApplication {
     app: Koa
@@ -18,19 +24,27 @@ export class DogBootApplication {
     private globalExceptionFilter: Function
     private render: Function
     private globalActionFilters: Function[] = []
-    constructor(private controllerPath: string) {
+    private conifg: DogBootApplicationConfig
+    constructor(conifg: DogBootApplicationConfig) {
+        if (!conifg.appRoot) {
+            console.error(`缺少必要的参数appRoot`)
+            process.abort()
+        }
+        if (!conifg.controllerPath) {
+            console.error(`缺少必要的参数controllerPath`)
+            process.abort()
+        }
+        appRoot = conifg.appRoot
+        this.conifg = conifg
         this.app = new Koa()
         return this
     }
     private build() {
-        this.app.use(koaStatic(
-            path.join(appRoot, 'public')
-        ))
+        if (this.conifg.publicPath) {
+            this.app.use(koaStatic(this.conifg.publicPath))
+        }
         this.app.use(koaBody())
-        Utils.getFileListInFolder(this.controllerPath).forEach(async (filePath: string) => {
-            if (filePath.endsWith('.d.ts')) {
-                return
-            }
+        Utils.getFileListInFolder(this.conifg.controllerPath).forEach(async (filePath: string) => {
             let _Module = require(filePath)
             Object.values(_Module).filter(a => a instanceof Function).forEach((_Class: Function) => {
                 let _prototype = _Class.prototype
@@ -48,7 +62,7 @@ export class DogBootApplication {
                         router[action.$method](action.$path, async (ctx: Koa.Context) => {
                             try {
                                 ctx.state.app = this
-                                let instance = await Utils.componentFactory(_Class.prototype.constructor, ctx)
+                                let instance = await Utils.getComponentInstanceFromFactory(_Class.prototype.constructor, ctx)
                                 let $params = instance[a].$params || []//使用@Bind...注册的参数，没有使用@Bind...装饰的参数将保持为null
                                 let $paramTypes: Function[] = instance[a].$paramTypes || []//全部的参数类型
                                 let params = $params.map((b: Function, idx: number) => {
@@ -76,7 +90,7 @@ export class DogBootApplication {
                                     if (!handlerName) {
                                         continue
                                     }
-                                    let filterInstance = await Utils.componentFactory(actionFilter, ctx) as any
+                                    let filterInstance = await Utils.getComponentInstanceFromFactory(actionFilter, ctx) as any
                                     actionFilterAndInstances.push([actionFilter, filterInstance])
                                     await filterInstance[handlerName](actionContext)
                                     if (ctx.status != 404) {
@@ -112,7 +126,7 @@ export class DogBootApplication {
                                 if (!exceptionFilter) {
                                     throw err
                                 }
-                                let exceptionFilterInstance = await Utils.componentFactory(exceptionFilter, ctx) as any
+                                let exceptionFilterInstance = await Utils.getComponentInstanceFromFactory(exceptionFilter, ctx) as any
                                 if (!exceptionFilter.prototype.$exceptionHandlerMap) {
                                     throw err
                                 }
@@ -132,10 +146,19 @@ export class DogBootApplication {
             })
         })
     }
-    addService(key: any, service: any) {
-        serviceMap.set(key, service)
-        return this
+    private startUp() {
+        if (!this.conifg.startUpPath) {
+            return
+        }
+        Utils.getFileListInFolder(this.conifg.startUpPath).forEach(async (filePath: string) => {
+            let _Module = require(filePath)
+            let startUps = Object.values(_Module).filter(a => a instanceof Function)
+            for (let startUp of startUps) {
+                await Utils.getComponentInstanceFromFactory(startUp as Function)
+            }
+        })
     }
+
     setPort(port: number) {
         this.port = port
         return this
@@ -155,6 +178,7 @@ export class DogBootApplication {
     run() {
         this.build()
         this.server = this.app.listen(this.port)
+        this.startUp()
         return this
     }
 }
@@ -170,22 +194,25 @@ class Utils {
         target.prototype.$paramTypes = paramTypes
     }
 
-    static async componentFactory(target: Function, ctx: Koa.Context): Promise<any> {
+    static async getComponentInstanceFromFactory(target: Function, ctx: Koa.Context = null): Promise<any> {
         let lifetime = target.prototype.$lifetime as ComponentLifetime
         if (lifetime == null) {
             throw new Error(`${target.name}没有被注册为可自动解析的组件，请至少添加@Controller、@Component、@ActionFilter、@ExceptionFilter、@Config等装饰器中的一种`)
         }
         if (lifetime == ComponentLifetime.Transient) {
-            return await this.createComponentInstance(new Map(), target, ctx)
+            return await this.createComponentInstance(new Map(), target)
         } else if (lifetime == ComponentLifetime.Scoped) {
+            if (ctx == null) {
+                throw new Error(`无法解析组件${target.name}，因为没有找到该组件必需的请求上下文，可以尝试检查该组件是否被ComponentLifetime != Scoped的组件引用`)
+            }
             ctx.state.classInstanceMap = ctx.state.classInstanceMap || new Map()
             return await this.createComponentInstance(ctx.state.classInstanceMap, target, ctx)
         } else if (lifetime == ComponentLifetime.Singleton) {
-            return await this.createComponentInstance(classInstanceMap, target, ctx)
+            return await this.createComponentInstance(componentInstanceMap, target)
         }
     }
 
-    static async createComponentInstance(containerMap: Map<Function, any>, target: Function, ctx: Koa.Context): Promise<any> {
+    static async createComponentInstance(containerMap: Map<Function, any>, target: Function, ctx: Koa.Context = null): Promise<any> {
         let instance = containerMap.get(target)
         if (instance == null) {
             if (target.prototype.$isConfig) {
@@ -208,7 +235,7 @@ class Utils {
         let paramTypes = target.prototype.$paramTypes
         let paramInstances = []
         for (let paramType of paramTypes) {
-            let paramInstance = await Utils.componentFactory(paramType as any, ctx)
+            let paramInstance = await Utils.getComponentInstanceFromFactory(paramType as any, ctx)
             paramInstances.push(paramInstance)
         }
         return paramInstances
@@ -220,10 +247,10 @@ class Utils {
         if (autowiredMap) {
             for (let [k, v] of autowiredMap) {
                 if (v.name) {
-                    instance[k] = await Utils.componentFactory(v as any, ctx)
+                    instance[k] = await Utils.getComponentInstanceFromFactory(v as any, ctx)
                 } else {
                     let _Class = v()
-                    instance[k] = await Utils.componentFactory(_Class as any, ctx)
+                    instance[k] = await Utils.getComponentInstanceFromFactory(_Class as any, ctx)
                 }
             }
         }
@@ -253,7 +280,9 @@ class Utils {
             if (fileState.isDirectory()) {
                 fileList = fileList.concat(Utils.getFileListInFolder(filePath))
             } else {
-                fileList.push(filePath)
+                if (!filePath.endsWith('.d.ts')) {
+                    fileList.push(filePath)
+                }
             }
         })
         return fileList
@@ -317,6 +346,17 @@ export class DogUtils {
         }
         return oldVal.map(a => this.getTypeSpecifiedValue(type, a))
     }
+
+    static setComponentInstance(key: any, instance: any) {
+        componentInstanceMap.set(key, instance)
+    }
+
+    static async getComponentInstance<T>(key: any): Promise<T> {
+        if (key.prototype && key.prototype.$lifetime != null) {
+            return await Utils.getComponentInstanceFromFactory(key)
+        }
+        return componentInstanceMap.get(key)
+    }
 }
 
 export enum ComponentLifetime {
@@ -337,6 +377,12 @@ export enum ComponentLifetime {
 export function Component(lifetime: ComponentLifetime = ComponentLifetime.Singleton) {
     return function (target: Function) {
         Utils.markAsComponent(target, lifetime)
+    }
+}
+
+export function StartUp() {
+    return function (target: Function) {
+        Utils.markAsComponent(target, ComponentLifetime.Singleton)
     }
 }
 
@@ -397,6 +443,22 @@ export function GetMapping(path: string = null) {
 
 export function PostMapping(path: string = null) {
     return Mapping('post', path)
+}
+
+export function PutMapping(path: string = null) {
+    return Mapping('put', path)
+}
+
+export function PatchMapping(path: string = null) {
+    return Mapping('patch', path)
+}
+
+export function DeleteMapping(path: string = null) {
+    return Mapping('delete', path)
+}
+
+export function HeadMapping(path: string = null) {
+    return Mapping('head', path)
 }
 
 export function BindContext(target, name: string, index: number) {
@@ -703,11 +765,4 @@ export function ExceptionHandler(type: Function) {
 
 export function Init(target, name: string) {
     target.$initMethod = name
-}
-
-@Component()
-export class ServiceContainer {
-    getService<T>(key: any): T {
-        return serviceMap.get(key)
-    }
 }

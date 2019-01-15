@@ -1,7 +1,7 @@
 import path = require('path');
 import pug = require('pug');
 
-import { DogBootApplication } from "./lib/DogBoot";
+import { DogBootApplication, DogBootApplicationConfig } from "./lib/DogBoot";
 import { MyExceptionFilter } from './filter/MyExceptionFilter';
 import { ActionFilter0 } from './filter/ActionFilter0';
 import { ActionFilter1 } from './filter/ActionFilter1';
@@ -9,8 +9,14 @@ import { ActionFilter1 } from './filter/ActionFilter1';
 let appRoot = require('app-root-path').path
 var viewPath = path.join(appRoot, 'view')
 
-new DogBootApplication(path.join(__dirname, 'controller'))
-    .addService('asd', 123)
+let dogBootApplicationConfig: DogBootApplicationConfig = {
+    appRoot,
+    controllerPath: path.join(__dirname, 'controller'),
+    publicPath: path.join(appRoot, 'public'),
+    startUpPath: path.join(__dirname, 'startup')
+}
+
+new DogBootApplication(dogBootApplicationConfig)
     .useExceptionFilter(MyExceptionFilter)
     .useActionFilter(ActionFilter0)
     .useActionFilter(ActionFilter1)
