@@ -61,7 +61,6 @@ export class DogBootApplication {
                     if (action.$method) {
                         router[action.$method](action.$path, async (ctx: Koa.Context) => {
                             try {
-                                ctx.state.app = this
                                 let instance = await Utils.getComponentInstanceFromFactory(_Class.prototype.constructor, ctx)
                                 let $params = instance[a].$params || []//使用@Bind...注册的参数，没有使用@Bind...装饰的参数将保持为null
                                 let $paramTypes: Function[] = instance[a].$paramTypes || []//全部的参数类型
@@ -200,19 +199,19 @@ class Utils {
             throw new Error(`${target.name}没有被注册为可自动解析的组件，请至少添加@Controller、@Component、@ActionFilter、@ExceptionFilter、@Config等装饰器中的一种`)
         }
         if (lifetime == ComponentLifetime.Transient) {
-            return await this.createComponentInstance(new Map(), target)
+            return await this.createComponentInstance(new Map(), target, ctx)
         } else if (lifetime == ComponentLifetime.Scoped) {
             if (ctx == null) {
-                throw new Error(`无法解析组件${target.name}，因为没有找到该组件必需的请求上下文，可以尝试检查该组件是否被ComponentLifetime != Scoped的组件引用`)
+                throw new Error(`无法解析组件${target.name}，因为没有找到该组件必需的请求上下文`)
             }
             ctx.state.classInstanceMap = ctx.state.classInstanceMap || new Map()
             return await this.createComponentInstance(ctx.state.classInstanceMap, target, ctx)
         } else if (lifetime == ComponentLifetime.Singleton) {
-            return await this.createComponentInstance(componentInstanceMap, target)
+            return await this.createComponentInstance(componentInstanceMap, target, ctx)
         }
     }
 
-    static async createComponentInstance(containerMap: Map<Function, any>, target: Function, ctx: Koa.Context = null): Promise<any> {
+    static async createComponentInstance(containerMap: Map<Function, any>, target: Function, ctx: Koa.Context): Promise<any> {
         let instance = containerMap.get(target)
         if (instance == null) {
             if (target.prototype.$isConfig) {
@@ -495,11 +494,6 @@ export function BindBody(target, name: string, index: number) {
     target[name].$params[index] = (ctx: Koa.Context) => [ctx.request.body, true]
 }
 
-export function BindApp(target, name: string, index: number) {
-    target[name].$params = target[name].$params || []
-    target[name].$params[index] = (ctx: Koa.Context) => [ctx.state.app, true]
-}
-
 export function Field(sourceNameOrGetSourceNameFunc: string | ((targetName: string) => string) = null) {
     return function (target, name: string) {
         target.$fields = target.$fields || {}
@@ -524,6 +518,10 @@ function getSourceName(targetName: string, sourceNameOrGetSourceNameFunc: string
     return (sourceNameOrGetSourceNameFunc as Function)(targetName)
 }
 
+/**
+ * 返回给定字符串转换成小写，并且使用下划线连接的新字符串
+ * @param targetName 
+ */
 export function Underscore(targetName: string): string {
     if (!targetName) {
         return targetName
@@ -565,6 +563,10 @@ export function Func(func: (arg0: any) => [boolean, string?]) {
     }
 }
 
+/**
+ * a != null
+ * @param errorMesage 
+ */
 export function NotNull(errorMesage: string = null) {
     errorMesage = errorMesage || '字段不能为空'
     return Func(a => {
@@ -575,6 +577,10 @@ export function NotNull(errorMesage: string = null) {
     })
 }
 
+/**
+ * a != null && a.length > 0
+ * @param errorMesage 
+ */
 export function NotEmpty(errorMesage: string = null) {
     errorMesage = errorMesage || '字段不能为空'
     return Func(a => {
@@ -585,6 +591,10 @@ export function NotEmpty(errorMesage: string = null) {
     })
 }
 
+/**
+ * a != null && a.trim().length > 0
+ * @param errorMesage 
+ */
 export function NotBlank(errorMesage: string = null) {
     errorMesage = errorMesage || '字段不能为空'
     return Func(a => {
