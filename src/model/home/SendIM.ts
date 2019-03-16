@@ -1,31 +1,31 @@
-import { Field, FieldArray, Range, MinLength, Max, Valid, NotNull, Underscore } from "../../lib/DogBoot";
+import { Typed, TypedArray, Range, MinLength, Max, Valid, NotNull, Underscore } from "../../lib/DogBoot";
 import { School } from "./School";
 import { Email } from "./Email";
 
 export class SendIM {
-    @Field()
+    @Typed()
     @NotNull()
     id: number
 
-    @Field()
+    @Typed()
     name: string
 
-    @Field(Underscore)
+    @Typed(Underscore)
     nickName: string
 
-    @Field()
+    @Typed()
     age: number
 
-    @Field()
+    @Typed()
     birth: Date
 
-    @Field('online1')
+    @Typed('online1')
     online: boolean
 
-    @Field()
+    @Typed()
     school: School
 
-    @FieldArray(Email)
+    @TypedArray(Email)
     @Valid
     emails: Email[]
 }

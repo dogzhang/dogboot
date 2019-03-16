@@ -7,267 +7,15 @@ import * as Koa from 'koa'
 import 'reflect-metadata'
 import { Server } from 'net';
 
-let componentInstanceMap: Map<any, any> = new Map()
-let appRoot: string
-
-export interface DogBootApplicationConfig {
-    appRoot: string
-    controllerPath: string
-    startUpPath?: string
-    publicPath?: string
-}
-
-export class DogBootApplication {
-    app: Koa
-    server: Server
-    private port: number = 3000
-    private globalExceptionFilter: Function
-    private render: Function
-    private globalActionFilters: Function[] = []
-    private conifg: DogBootApplicationConfig
-    constructor(conifg: DogBootApplicationConfig) {
-        if (!conifg.appRoot) {
-            console.error(`缺少必要的参数appRoot`)
-            process.abort()
-        }
-        if (!conifg.controllerPath) {
-            console.error(`缺少必要的参数controllerPath`)
-            process.abort()
-        }
-        appRoot = conifg.appRoot
-        this.conifg = conifg
-        this.app = new Koa()
-        return this
-    }
-    private build() {
-        if (this.conifg.publicPath) {
-            this.app.use(koaStatic(this.conifg.publicPath))
-        }
-        this.app.use(koaBody())
-        Utils.getFileListInFolder(this.conifg.controllerPath).forEach(async (filePath: string) => {
-            let _Module = require(filePath)
-            Object.values(_Module).filter(a => a instanceof Function).forEach((_Class: Function) => {
-                let _prototype = _Class.prototype
-                let controllerPath = _prototype.$path
-                if (!controllerPath) {
-                    return
-                }
-                let router = new Router({
-                    prefix: controllerPath
-                })
-                let controllerName = _Class.name.replace(/controller$/i, '').toLowerCase()
-                Object.getOwnPropertyNames(_prototype).forEach(a => {
-                    let action = _prototype[a]
-                    if (action.$method) {
-                        router[action.$method](action.$path, async (ctx: Koa.Context) => {
-                            try {
-                                let instance = await Utils.getComponentInstanceFromFactory(_Class.prototype.constructor, ctx)
-                                let $params = instance[a].$params || []//使用@Bind...注册的参数，没有使用@Bind...装饰的参数将保持为null
-                                let $paramTypes: Function[] = instance[a].$paramTypes || []//全部的参数类型
-                                let params = $params.map((b: Function, idx: number) => {
-                                    let oldValArr = b(ctx)
-                                    let oldVal = oldValArr[0]
-                                    let typeSpecified = oldValArr[1]
-                                    let toType = $paramTypes[idx]
-                                    if (typeSpecified && toType) {
-                                        return DogUtils.getTypeSpecifiedValue(toType, oldVal)
-                                    } else {
-                                        return oldVal
-                                    }
-                                })
-                                for (let b of params) {
-                                    await Utils.validateField(b)
-                                }
-                                let actionContext = new ActionFilterContext(ctx, params, $paramTypes, _Class, a)
-
-                                let actionFiltersOnController = _prototype.$actionFilters = _prototype.$actionFilters || []
-                                let actionFiltersOnAction = instance[a].$actionFilters || []
-                                let actionFilters = this.globalActionFilters.concat(actionFiltersOnController, actionFiltersOnAction)
-                                let actionFilterAndInstances: [Function, any][] = []
-                                for (let actionFilter of actionFilters) {
-                                    let handlerName = actionFilter.prototype.$actionHandlerMap.get(DoBefore)
-                                    if (!handlerName) {
-                                        continue
-                                    }
-                                    let filterInstance = await Utils.getComponentInstanceFromFactory(actionFilter, ctx) as any
-                                    actionFilterAndInstances.push([actionFilter, filterInstance])
-                                    await filterInstance[handlerName](actionContext)
-                                    if (ctx.status != 404) {
-                                        break
-                                    }
-                                }
-
-                                if (ctx.status == 404) {
-                                    let body = await instance[a](...params)
-
-                                    if (ctx.status == 404) {
-                                        if (body instanceof ViewResult) {
-                                            if (this.render) {
-                                                ctx.body = await this.render(controllerName, a, body.data)
-                                            } else {
-                                                throw new Error('没有找到任何视图渲染器')
-                                            }
-                                        } else {
-                                            ctx.body = body
-                                        }
-                                    }
-                                }
-
-                                for (let [actionFilter, filterInstance] of actionFilterAndInstances.reverse()) {
-                                    let handlerName = actionFilter.prototype.$actionHandlerMap.get(DoAfter)
-                                    if (!handlerName) {
-                                        continue
-                                    }
-                                    await filterInstance[handlerName](actionContext)
-                                }
-                            } catch (err) {
-                                let exceptionFilter = _prototype[a].$exceptionFilter || _prototype.$exceptionFilter || this.globalExceptionFilter
-                                if (!exceptionFilter) {
-                                    throw err
-                                }
-                                let exceptionFilterInstance = await Utils.getComponentInstanceFromFactory(exceptionFilter, ctx) as any
-                                if (!exceptionFilter.prototype.$exceptionHandlerMap) {
-                                    throw err
-                                }
-                                let handlerName = exceptionFilter.prototype.$exceptionHandlerMap.get(err.__proto__.constructor)
-                                if (!handlerName) {
-                                    handlerName = exceptionFilter.prototype.$exceptionHandlerMap.get(Error)
-                                }
-                                if (!handlerName) {
-                                    throw err
-                                }
-                                await exceptionFilterInstance[handlerName](err, ctx)
-                            }
-                        })
-                    }
-                })
-                this.app.use(router.routes())
-            })
-        })
-    }
-    private startUp() {
-        if (!this.conifg.startUpPath) {
-            return
-        }
-        Utils.getFileListInFolder(this.conifg.startUpPath).forEach(async (filePath: string) => {
-            let _Module = require(filePath)
-            let startUps = Object.values(_Module).filter(a => a instanceof Function)
-            for (let startUp of startUps) {
-                await Utils.getComponentInstanceFromFactory(startUp as Function)
-            }
-        })
-    }
-
-    setPort(port: number) {
-        this.port = port
-        return this
-    }
-    setRender(render: (controllerName: string, actionName: string, data: any) => string) {
-        this.render = render
-        return this
-    }
-    useExceptionFilter(exceptionFilter: Function) {
-        this.globalExceptionFilter = exceptionFilter
-        return this
-    }
-    useActionFilter(actionFilter: Function) {
-        this.globalActionFilters.push(actionFilter)
-        return this
-    }
-    run() {
-        this.build()
-        this.server = this.app.listen(this.port)
-        this.startUp()
-        return this
-    }
-}
-
 class Utils {
-    static markAsComponent(target: Function, lifetime: ComponentLifetime) {
-        target.prototype.$lifetime = lifetime
+    static markAsComponent(target: Function) {
+        target.prototype.$isComponent = true
         let paramTypes: Array<Function> = Reflect.getMetadata('design:paramtypes', target) || []
         if (paramTypes.includes(target)) {
             console.error(`${target.name}中存在自我依赖`)
             process.abort()
         }
         target.prototype.$paramTypes = paramTypes
-    }
-
-    static async getComponentInstanceFromFactory(target: Function, ctx: Koa.Context = null): Promise<any> {
-        let lifetime = target.prototype.$lifetime as ComponentLifetime
-        if (lifetime == null) {
-            throw new Error(`${target.name}没有被注册为可自动解析的组件，请至少添加@Controller、@Component、@ActionFilter、@ExceptionFilter、@Config等装饰器中的一种`)
-        }
-        if (lifetime == ComponentLifetime.Transient) {
-            return await this.createComponentInstance(new Map(), target, ctx)
-        } else if (lifetime == ComponentLifetime.Scoped) {
-            if (ctx == null) {
-                throw new Error(`无法解析组件${target.name}，因为没有找到该组件必需的请求上下文`)
-            }
-            ctx.state.classInstanceMap = ctx.state.classInstanceMap || new Map()
-            return await this.createComponentInstance(ctx.state.classInstanceMap, target, ctx)
-        } else if (lifetime == ComponentLifetime.Singleton) {
-            return await this.createComponentInstance(componentInstanceMap, target, ctx)
-        }
-    }
-
-    static async createComponentInstance(containerMap: Map<Function, any>, target: Function, ctx: Koa.Context): Promise<any> {
-        let instance = containerMap.get(target)
-        if (instance == null) {
-            if (target.prototype.$isConfig) {
-                instance = this.getConfigValue(target)
-                containerMap.set(target, instance)
-            } else {
-                instance = Reflect.construct(target, await Utils.getParamInstances(target, ctx))
-                containerMap.set(target, instance)
-                await this.resolveAutowiredDependences(instance, ctx)
-                let initMethod = target.prototype.$initMethod
-                if (initMethod) {
-                    await instance[initMethod]()
-                }
-            }
-        }
-        return instance
-    }
-
-    static async getParamInstances(target: Function, ctx: Koa.Context): Promise<any[]> {
-        let paramTypes = target.prototype.$paramTypes
-        let paramInstances = []
-        for (let paramType of paramTypes) {
-            let paramInstance = await Utils.getComponentInstanceFromFactory(paramType as any, ctx)
-            paramInstances.push(paramInstance)
-        }
-        return paramInstances
-    }
-
-    static async resolveAutowiredDependences(instance, ctx: Koa.Context) {
-        let target = instance.__proto__.constructor
-        let autowiredMap = target.prototype.$autowiredMap
-        if (autowiredMap) {
-            for (let [k, v] of autowiredMap) {
-                if (v.name) {
-                    instance[k] = await Utils.getComponentInstanceFromFactory(v as any, ctx)
-                } else {
-                    let _Class = v()
-                    instance[k] = await Utils.getComponentInstanceFromFactory(_Class as any, ctx)
-                }
-            }
-        }
-    }
-
-    static getConfigValue(target: Function) {
-        let oldVal = require(path.join(appRoot, 'config.json'))
-        let sectionArr = target.prototype.$configField.split('.').filter((a: any) => a)
-        for (let a of sectionArr) {
-            if (oldVal == null) {
-                return null
-            }
-            oldVal = oldVal[a]
-        }
-        if (oldVal == null) {
-            return null
-        }
-        return DogUtils.getTypeSpecifiedValue(target, oldVal)
     }
 
     static getFileListInFolder(dirPath: string) {
@@ -316,6 +64,301 @@ class Utils {
     }
 }
 
+@Component
+export class DogBootApplication {
+    app: Koa = new Koa()
+    server: Server
+    ready: boolean = false
+    private port: number = 3000
+    private globalExceptionFilter: Function
+    private render: Function
+    private globalActionFilters: Function[] = []
+    private prefix: string
+    private execRootPath: string
+    private container: DIContainer
+    private controllerClasses: Function[] = []
+    constructor(private readonly appRootPath: string) {
+        this.container = new DIContainer(appRootPath)
+        let execFileName = process.argv[1]
+        if (execFileName.endsWith('.ts')) {
+            this.execRootPath = path.join(appRootPath, 'src')
+        } else {
+            this.execRootPath = path.join(appRootPath, 'dist')
+        }
+        this.container.setComponentInstance(DogBootApplication, this)
+        this.container.setComponentInstance(DIContainer, this.container)
+    }
+    private build() {
+        let publicRootPath = path.join(this.appRootPath, 'public')
+        this.app.use(koaStatic(publicRootPath))
+        this.app.use(koaBody())
+        let controllerRootPath = path.join(this.execRootPath, 'controller')
+        Utils.getFileListInFolder(controllerRootPath).forEach(a => { this.checkAndHandleControllerFile(a) })
+    }
+    private checkAndHandleControllerFile(filePath: string) {
+        let _Module = require(filePath)
+        Object.values(_Module).filter(a => a instanceof Function).forEach((a: Function) => { this.checkAndHandleControllerClass(a) })
+    }
+    private checkAndHandleControllerClass(_Class: Function) {
+        let _prototype = _Class.prototype
+        let controllerName = _Class.name.replace(/controller$/i, '').toLowerCase()
+        let controllerPath = _prototype.$path
+        if (!controllerPath) {
+            return
+        }
+        let router = new Router({
+            prefix: controllerPath
+        })
+        Object.getOwnPropertyNames(_prototype).forEach(a => {
+            this.checkAndHandleActionName(a, _Class, controllerName, router)
+        })
+        if (this.prefix) {
+            router.prefix(this.prefix)
+        }
+        this.app.use(router.routes())
+
+        this.controllerClasses.push(_Class)
+    }
+    private checkAndHandleActionName(actionName: string, _Class: Function, controllerName: string, router: Router) {
+        let _prototype = _Class.prototype
+        let action = _prototype[actionName]
+        if (!action.$method) {
+            return
+        }
+        router[action.$method](action.$path, async (ctx: Koa.Context) => {
+            if (!this.ready) {
+                return
+            }
+            try {
+                await this.handleContext(actionName, _Class, controllerName, ctx)
+            } catch (err) {
+                let exceptionFilter = _prototype[actionName].$exceptionFilter || _prototype.$exceptionFilter || this.globalExceptionFilter
+                if (!exceptionFilter) {
+                    throw err
+                }
+                let exceptionFilterInstance = await this.container.getComponentInstanceFromFactory(exceptionFilter) as any
+                if (!exceptionFilter.prototype.$exceptionHandlerMap) {
+                    throw err
+                }
+                let handlerName = exceptionFilter.prototype.$exceptionHandlerMap.get(err.__proto__.constructor)
+                if (!handlerName) {
+                    handlerName = exceptionFilter.prototype.$exceptionHandlerMap.get(Error)
+                }
+                if (!handlerName) {
+                    throw err
+                }
+                await exceptionFilterInstance[handlerName](err, ctx)
+            }
+        })
+    }
+    private async handleContext(actionName: string, _Class: Function, controllerName: string, ctx: Koa.Context) {
+        let _prototype = _Class.prototype
+        let instance = await this.container.getComponentInstanceFromFactory(_prototype.constructor)
+        let $params = instance[actionName].$params || []//使用@Bind...注册的参数，没有使用@Bind...装饰的参数将保持为null
+        let $paramTypes: Function[] = instance[actionName].$paramTypes || []//全部的参数类型
+        let params = $params.map((b: Function, idx: number) => {
+            let oldValArr = b(ctx)
+            let oldVal = oldValArr[0]
+            let typeSpecified = oldValArr[1]
+            let toType = $paramTypes[idx]
+            if (typeSpecified && toType) {
+                return DogUtils.getTypeSpecifiedValue(toType, oldVal)
+            } else {
+                return oldVal
+            }
+        })
+        for (let b of params) {
+            await Utils.validateField(b)
+        }
+        let actionContext = new ActionFilterContext(ctx, params, $paramTypes, _Class, actionName)
+
+        let actionFiltersOnController = _prototype.$actionFilters || []
+        let actionFiltersOnAction = instance[actionName].$actionFilters || []
+        let actionFilters = this.globalActionFilters.concat(actionFiltersOnController, actionFiltersOnAction)
+        let actionFilterAndInstances: [Function, any][] = []
+        for (let actionFilter of actionFilters) {
+            let handlerName = actionFilter.prototype.$actionHandlerMap.get(DoBefore)
+            if (!handlerName) {
+                continue
+            }
+            let filterInstance = await this.container.getComponentInstanceFromFactory(actionFilter) as any
+            actionFilterAndInstances.push([actionFilter, filterInstance])
+            await filterInstance[handlerName](actionContext)
+            if (ctx.status != 404) {
+                break
+            }
+        }
+
+        if (ctx.status == 404) {
+            let body = await instance[actionName](...params)
+
+            if (ctx.status == 404) {
+                if (body instanceof ViewResult) {
+                    if (this.render) {
+                        ctx.body = await this.render(controllerName, actionName, body.data)
+                    } else {
+                        throw new Error('没有找到任何视图渲染器')
+                    }
+                } else {
+                    ctx.body = body
+                }
+            }
+        }
+
+        for (let [actionFilter, filterInstance] of actionFilterAndInstances.reverse()) {
+            let handlerName = actionFilter.prototype.$actionHandlerMap.get(DoAfter)
+            if (!handlerName) {
+                continue
+            }
+            await filterInstance[handlerName](actionContext)
+        }
+    }
+    private async startUp() {
+        let startUpRootPath = path.join(this.execRootPath, 'startup')
+        if (!fs.existsSync(startUpRootPath)) {
+            return
+        }
+        let startUpFileList = Utils.getFileListInFolder(startUpRootPath)
+        let startUpClassList = []
+        for (let filePath of startUpFileList) {
+            let _Module = require(filePath)
+            Object.values(_Module).forEach(a => {
+                if (a instanceof Function) {
+                    startUpClassList.push(a)
+                }
+            })
+        }
+        startUpClassList.sort((a, b) => b.prototype.$order - a.prototype.$order)
+        for (let startUp of startUpClassList) {
+            await this.container.getComponentInstanceFromFactory(startUp as Function)
+        }
+    }
+    private async initComponents() {
+        for (let componentClass of this.controllerClasses) {
+            await this.container.getComponentInstanceFromFactory(componentClass as Function)
+        }
+    }
+    setPrefix(prefix: string) {
+        this.prefix = prefix
+        return this
+    }
+    setPort(port: number) {
+        this.port = port
+        return this
+    }
+    setRender(render: (controllerName: string, actionName: string, data: any) => string) {
+        this.render = render
+        return this
+    }
+    useExceptionFilter(exceptionFilter: Function) {
+        this.globalExceptionFilter = exceptionFilter
+        return this
+    }
+    useActionFilter(actionFilter: Function) {
+        this.globalActionFilters.push(actionFilter)
+        return this
+    }
+    run() {
+        let startTime = Date.now()
+        this.build()
+        this.server = this.app.listen(this.port)
+        this.startUp().then(async () => {
+            await this.initComponents()
+            this.ready = true
+            let endTime = Date.now()
+            console.log(`Your application has started at ${this.port} in ${endTime - startTime}ms`)
+        })
+        return this
+    }
+}
+
+@Component
+export class DIContainer {
+    private componentInstanceMap: Map<any, any> = new Map()
+    constructor(private readonly appRootPath: string) {
+    }
+
+    setComponentInstance(key: any, instance: any) {
+        this.componentInstanceMap.set(key, instance)
+    }
+
+    async getComponentInstance<T>(key: any): Promise<T> {
+        if (key.prototype && key.prototype.$lifetime != null) {
+            return await this.getComponentInstanceFromFactory(key)
+        }
+        return this.componentInstanceMap.get(key)
+    }
+
+    async getComponentInstanceFromFactory(target: Function): Promise<any> {
+        if (!target.prototype.$isComponent) {
+            throw new Error(`${target.name}没有被注册为可自动解析的组件，请至少添加@Component、@StartUp、@Controller、@Config等装饰器中的一种`)
+        }
+        let instance = this.componentInstanceMap.get(target)
+        if (instance) {
+            return instance
+        }
+
+        return await this.createComponentInstance(target)
+    }
+
+    async createComponentInstance(target: Function): Promise<any> {
+        let instance = null
+        if (target.prototype.$isConfig) {
+            instance = this.getConfigValue(target)
+            this.componentInstanceMap.set(target, instance)
+        } else {
+            instance = Reflect.construct(target, await this.getParamInstances(target))
+            this.componentInstanceMap.set(target, instance)
+            await this.resolveAutowiredDependences(instance)
+            let initMethod = target.prototype.$initMethod
+            if (initMethod) {
+                await instance[initMethod]()
+            }
+        }
+        return instance
+    }
+
+    async getParamInstances(target: Function): Promise<any[]> {
+        let paramTypes = target.prototype.$paramTypes
+        let paramInstances = []
+        for (let paramType of paramTypes) {
+            let paramInstance = await this.getComponentInstanceFromFactory(paramType as any)
+            paramInstances.push(paramInstance)
+        }
+        return paramInstances
+    }
+
+    async resolveAutowiredDependences(instance) {
+        let target = instance.__proto__.constructor
+        let autowiredMap = target.prototype.$autowiredMap
+        if (autowiredMap) {
+            for (let [k, v] of autowiredMap) {
+                if (v.name) {
+                    instance[k] = await this.getComponentInstanceFromFactory(v as any)
+                } else {
+                    let _Class = v()
+                    instance[k] = await this.getComponentInstanceFromFactory(_Class as any)
+                }
+            }
+        }
+    }
+
+    getConfigValue(target: Function) {
+        let oldVal = require(path.join(this.appRootPath, 'config.json'))
+        let sectionArr = target.prototype.$configField.split('.').filter((a: any) => a)
+        for (let a of sectionArr) {
+            if (oldVal == null) {
+                return null
+            }
+            oldVal = oldVal[a]
+        }
+        if (oldVal == null) {
+            return null
+        }
+        return DogUtils.getTypeSpecifiedValue(target, oldVal)
+    }
+}
+
 export class DogUtils {
     static getTypeSpecifiedValue<T>(type: Function, oldVal: any): T {
         if (oldVal == null) {
@@ -345,62 +388,23 @@ export class DogUtils {
         }
         return oldVal.map(a => this.getTypeSpecifiedValue(type, a))
     }
-
-    static setComponentInstance(key: any, instance: any) {
-        componentInstanceMap.set(key, instance)
-    }
-
-    static async getComponentInstance<T>(key: any): Promise<T> {
-        if (key.prototype && key.prototype.$lifetime != null) {
-            return await Utils.getComponentInstanceFromFactory(key)
-        }
-        return componentInstanceMap.get(key)
-    }
 }
 
-export enum ComponentLifetime {
-    /**
-     * 全局唯一
-     */
-    Singleton,
-    /**
-     * 每一次请求只有一个
-     */
-    Scoped,
-    /**
-     * 每次new一个
-     */
-    Transient
+export function Component(target: Function) {
+    Utils.markAsComponent(target)
 }
 
-export function Component(lifetime: ComponentLifetime = ComponentLifetime.Singleton) {
+export function StartUp(order: number = 0) {
     return function (target: Function) {
-        Utils.markAsComponent(target, lifetime)
+        target.prototype.$order = order
+        Utils.markAsComponent(target)
     }
 }
 
-export function StartUp() {
-    return function (target: Function) {
-        Utils.markAsComponent(target, ComponentLifetime.Singleton)
-    }
-}
-
-export function Controller(path: string = null, lifetime: ComponentLifetime = ComponentLifetime.Transient) {
+export function Controller(path: string = null) {
     return function (target: Function) {
         target.prototype.$path = path || '/' + target.name.replace(/controller$/i, '')
-        Utils.markAsComponent(target, lifetime)
-    }
-}
-
-export function ActionFilter(lifetime: ComponentLifetime = ComponentLifetime.Singleton) {
-    return function (target: Function) {
-        Utils.markAsComponent(target, lifetime)
-    }
-}
-
-export function ExceptionFilter(lifetime: ComponentLifetime = ComponentLifetime.Singleton) {
-    return function (target: Function) {
-        Utils.markAsComponent(target, lifetime)
+        Utils.markAsComponent(target)
     }
 }
 
@@ -408,7 +412,7 @@ export function Config(field: string = null) {
     return function (target: Function) {
         target.prototype.$isConfig = true
         target.prototype.$configField = field
-        Utils.markAsComponent(target, ComponentLifetime.Singleton)
+        Utils.markAsComponent(target)
     }
 }
 
@@ -494,14 +498,14 @@ export function BindBody(target, name: string, index: number) {
     target[name].$params[index] = (ctx: Koa.Context) => [ctx.request.body, true]
 }
 
-export function Field(sourceNameOrGetSourceNameFunc: string | ((targetName: string) => string) = null) {
+export function Typed(sourceNameOrGetSourceNameFunc: string | ((targetName: string) => string) = null) {
     return function (target, name: string) {
         target.$fields = target.$fields || {}
         target.$fields[name] = new TypeSpecifiedMap(TypeSpecifiedType.General, Reflect.getMetadata('design:type', target, name), getSourceName(name, sourceNameOrGetSourceNameFunc))
     }
 }
 
-export function FieldArray(type: Function, sourceNameOrGetSourceNameFunc: string | ((targetName: string) => string) = null) {
+export function TypedArray(type: Function, sourceNameOrGetSourceNameFunc: string | ((targetName: string) => string) = null) {
     return function (target, name: string) {
         target.$fields = target.$fields || {}
         target.$fields[name] = new TypeSpecifiedMap(TypeSpecifiedType.Array, type, getSourceName(name, sourceNameOrGetSourceNameFunc))

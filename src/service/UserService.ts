@@ -1,7 +1,7 @@
 import { Component, Autowired } from "../lib/DogBoot";
 import { ItemService } from "./ItemService";
 
-@Component()
+@Component
 export class UserService {
 
     constructor() {

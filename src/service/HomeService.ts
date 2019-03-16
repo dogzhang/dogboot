@@ -1,6 +1,6 @@
 import { Component } from "../lib/DogBoot";
 
-@Component()
+@Component
 export class HomeService {
     index() {
         console.log('HomeService')

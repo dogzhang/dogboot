@@ -1,6 +1,6 @@
-import { ActionFilterContext, ActionFilter, DoBefore, DoAfter } from "../lib/DogBoot";
+import { ActionFilterContext, DoBefore, DoAfter, Component } from "../lib/DogBoot";
 
-@ActionFilter()
+@Component
 export class ActionFilter2 {
 
     @DoBefore

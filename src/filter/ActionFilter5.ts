@@ -1,7 +1,7 @@
-import { ActionFilterContext, ActionFilter, DoBefore, DoAfter } from "../lib/DogBoot";
+import { ActionFilterContext, DoBefore, DoAfter, Component } from "../lib/DogBoot";
 import { RedisKeyConfig } from "../common/config/RedisKeyConfig";
 
-@ActionFilter()
+@Component
 export class ActionFilter5 {
     constructor(private readonly redisKeyConfig: RedisKeyConfig) { }
 

@@ -1,13 +1,13 @@
-import { Field, MinLength } from "../../lib/DogBoot";
+import { Typed, MinLength } from "../../lib/DogBoot";
 
 export class Email {
-    @Field()
+    @Typed()
     id: number
 
-    @Field()
+    @Typed()
     @MinLength(12)
     title: string
 
-    @Field()
+    @Typed()
     content: string
 }

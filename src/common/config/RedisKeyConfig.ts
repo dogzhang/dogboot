@@ -1,16 +1,16 @@
-import { Config, Field } from "../../lib/DogBoot";
+import { Config, Typed } from "../../lib/DogBoot";
 
 @Config('redisKey')
 export class RedisKeyConfig {
-    @Field()
+    @Typed()
     accessToken: string
 
-    @Field()
+    @Typed()
     ticket: string
 
-    @Field()
+    @Typed()
     shopLastOnline: string
 
-    @Field()
+    @Typed()
     qrcodeForInviteSeller: string
 }
