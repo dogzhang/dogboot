@@ -32,8 +32,35 @@ npm i typescript -D
 |  └── App.ts
 ├──package-lock.json
 ├──package.json
-├──README.md
 └──tsconfig.json
+```
+package.json是nodejs的包以来清单文件，也是nodejs模块描述文件。现在，请打开这个文件，大概里面的内容会是这个样子
+```json
+{
+  "name": "dogboot-demo",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "dogboot": "^1.1.5"
+  },
+  "devDependencies": {
+    "typescript": "^3.3.4000"
+  }
+}
+```
+将scripts节替换为
+```
+"scripts": {
+  "tsc": "tsc",
+  "start": "node dist/App.js"
+}
 ```
 tsconfig.json是Typescript项目的可选配置文件，对于dogboot我们建议填入以下内容（更高级的配置，请参考[http://www.typescriptlang.org/docs/handbook/tsconfig-json.html](http://www.typescriptlang.org/docs/handbook/tsconfig-json.html)），
 ```json
@@ -44,8 +71,7 @@ tsconfig.json是Typescript项目的可选配置文件，对于dogboot我们建�
     "experimentalDecorators": true,
     "target": "esnext",
     "lib": ["es2017"],
-    "outDir": "dist",
-    "watch": true
+    "outDir": "dist"
   },
   "include": ["src"]
 }
@@ -79,7 +105,7 @@ npm start
 ```
 Your application has started at 3000 in xxxms
 ```
-万事俱备，请在浏览器输入[http://localhost:3000?name=World](http://localhost:3000?name=World)
+万事俱备，请在浏览器输入[http://localhost:3000/home/index?name=World](http://localhost:3000/home/index?name=World)
 
 你将看到
 ```
@@ -90,13 +116,13 @@ Hello World
 当然你肯定不会满足于这个Hello World例子，那就请继续阅读我们的进阶文档吧
 
 ## DogBootApplication
-一个dogboot程序始于DogBootApplication类，只需要提供一个appRootPath参数就可以了。执行run方法的时候，程序会依据dogboot约定的目录习惯扫描appRootPath目录下的文件夹。
+一个dogboot程序始于DogBootApplication类，只需要提供一个appRootPath参数就可以了。执行run方法的时候，dogboot会扫描appRootPath目录下的文件夹。
 
 这其中包含以下几种：
 
-controller：此目录包含所有的控制器文件，关于controller的更多介绍，请参考
+(src/dist)/controller：此目录包含所有的控制器文件，关于controller的更多介绍，请参考[@Controller](#@Controller)
 
-startup：此目录包含所有的预启动文件，关于startup的更多介绍，请参考
+(src/dist)/startup：此目录包含所有的预启动组件，关于startup的更多介绍，请参考[@StartUp](#@StartUp)
 
 程序会自动判断当前的运行环境，如果是直接运行ts文件，会扫描src目录，如果是运行编译后的js文件，会扫描dist目录。
 
@@ -104,20 +130,176 @@ startup：此目录包含所有的预启动文件，关于startup的更多介绍
 ## @Controller
 使用@Controller装饰器标记一个类为控制器，并且传入一个可选的path参数，用于指定路由前缀。按照约定，控制器文件名应该以Controller结尾，但这不是必须的。path参数是可选的，如果不传，dogboot会指定这个类名的前面一部分并且转为小写作为路由前缀。比如：HomeController的默认路由前缀是/home。
 ## @StartUp
-使用@StartUp装饰器标记一个类为预启动类，并且传入一个可选的order参数。dogboot程序在正式接受用户的请求之前会先执行预启动类的启动方法，使用order参数定制你希望的启动顺序。
+使用@StartUp装饰器标记一个类为预启动组件，并且传入一个可选的order参数。dogboot程序在正式接受用户的请求之前会先执行预启动组件的启动方法，使用order参数定制你希望的启动顺序。
+一个常规的预启动组件使用方式如下
+```
+import { StartUp, Init } from "dogboot";
+
+@StartUp()
+export class StartUp1 {
+    index: number;
+
+    @Init
+    private init() {
+        this.index = 0;
+    }
+
+    doSth() {
+        return this.index++
+    }
+}
+```
+在其他地方被调用
+```
+import { Controller, GetMapping, BindQuery } from "dogboot";
+import { StartUp1 } from "../startup/StartUp1";
+
+@Controller('/home')
+export class HomeController {
+    constructor(private readonly startUp1: StartUp1) { }
+
+    @GetMapping('/index')
+    async index(@BindQuery('name') name: string) {
+        let index = this.startUp1.doSth();
+        return `Hello ${name} ${index}`
+    }
+}
+```
+执行之前的启动命令
+```
+npm run tsc
+npm start
+```
+再次在浏览器输入[http://localhost:3000/home/index?name=World](http://localhost:3000/home/index?name=World)
+
+你会看到
+```
+Hello World 0
+```
+刷新页面，你会看到
+```
+Hello World 1
+```
+我们的预启动组件生效了，它通过构造器被注入到HomeController，并且保持了一个index变量，每次执行doSth方法，index会加1
 ## @Config
 使用@Config标记一个类为配置文件映射器，并且传入一个可选的field参数。使用配置文件映射器，而不是require('config.json')，前者得到的对象具有类型声明，更便于使用。
 field参数表示映射器映射的配置节，如果不传，表示整个配置文件，使用a.b.c映射a节下的b节下的c。
 
-⚠️所以，⚠不要在你的配置文件中使用任何类似于a.b表示一个节，这会使配置映射器出错。
+⚠️所以，不要在你的配置文件中使用任何类似于a.b表示一个节，这会使配置映射器出错。
 
-配置映射器会自动转化你的字段类型，避免使用的时候出现误差。比如，你在配置文件里面有一个配置，a:'1'，但是你把这个a当成number类型来使用，这可能会导致严重的程序bug，比如let b = a + 1，你期望b === 2，可是实际上，b === '11'。dogboot在映射配置文件的时候会自动转换类型为你期望的类型，从根本规避了犯这种错误的可能性。
+⚠️哦，别忘记，我们也限定了你的配置文件名必须叫config.json，并且位于程序根目录，就是那个package.json同级的目录。
+
+一个常规的配置文件映射器使用方式如下
+在项目根目录下新建一个config.json文件，输入
+```json
+{
+    "mysql": {
+        "host": "127.0.0.1",
+        "port": 3306,
+        "user": "root",
+        "password": "524163",
+        "db": "test1"
+    }
+}
+```
+在src目录下新建文件MyConfig.ts
+```typescript
+import { Config, Typed } from "dogboot";
+
+@Config('mysql')
+export class MyConfig {
+    @Typed()
+    host: string
+
+    @Typed()
+    port: number
+
+    @Typed()
+    user: string
+
+    @Typed()
+    password: string
+
+    @Typed()
+    db: string
+}
+```
+在HomeController中使用
+```typescript
+import { Controller, GetMapping, BindQuery } from "dogboot";
+import { StartUp1 } from "../startup/StartUp1";
+import { MyConfig } from "../MyConfig";
+
+@Controller('/home')
+export class HomeController {
+    constructor(private readonly startUp1: StartUp1, private readonly myConfig: MyConfig) { }
+
+    @GetMapping('/index')
+    async index(@BindQuery('name') name: string) {
+        let index = this.startUp1.doSth();
+        return `Hello ${name} ${index} ${this.myConfig.host}`
+    }
+}
+```
+重复之前的编译以及启动操作，然后在浏览器打开[http://localhost:3000/home/index?name=World](http://localhost:3000/home/index?name=World)
+
+你会看到
+```
+Hello World 0 127.0.0.1
+```
+我们的配置文件映射器生效了，MyConfig类映射了config.json，你在使用MyConfig的时候，所有的字段都是有类型声明的，并且已经转换为你希望的类型，这得益于我们使用了[@Typed](#@Typed),dogboot会帮我们自动处理被@Typed标记的字段的类型。
+
+如果这个config.json写法如下
+```json
+{
+    "mysql": {
+        "host": "127.0.0.1",
+        "port": "3306",
+        "user": "root",
+        "password": "524163",
+        "db": "test1"
+    }
+}
+```
+然后在HomeController里面测试typeof myConfig.port，会发现得到number而不是string
 ## @Component
-使用@Component标记一个类为可注入组件，同时也表示此组件的生命周期完全交给dogboot内置的依赖注入管理器管理。
+使用@Component标记一个类为可注入组件，同时也表示此组件的生命周期完全交给dogboot内置的依赖注入管理器管理。一个常规的Component使用方式如下
+```typescript
+import { Component, Init } from "dogboot";
 
-Controller、StartUp、Config本质上也是Component。
+@Component
+export class HomeService {
+    @Init
+    doInit() { }
+
+    getSth() {
+        return 1
+    }
+}
+```
+然后在HomeController使用
+```typescript
+import { Controller, GetMapping, BindQuery } from "dogboot";
+import { StartUp1 } from "../startup/StartUp1";
+import { MyConfig } from "../MyConfig";
+import { HomeService } from "../service/HomeService";
+
+@Controller('/home')
+export class HomeController {
+    constructor(private readonly startUp1: StartUp1, private readonly myConfig: MyConfig, private readonly homeService: HomeService) { }
+
+    @GetMapping('/index')
+    async index(@BindQuery('name') name: string) {
+        let index = this.startUp1.doSth();
+        return `Hello ${name} ${index} ${this.myConfig.host} ${this.homeService.getSth()}`
+    }
+}
+```
+与几乎StartUp一样，只是使用了@Component来标记类。
+
+事实上，Controller、StartUp、Config本质上也是Component。
 ## @Init
-组件可以使用@Init标记一个方法，方法名称不限定，这个方法用于依赖注入管理器初始化组件时调用，支持异步方法。虽然类构造器里面可以做一些初始化的工作，但是类构造器不能使用await执行异步方法，所以特别添加了这个装饰器。
+任何都组件可以使用@Init标记一个方法，方法名称不限定，这个方法用于依赖注入管理器初始化组件时调用，支持异步方法。虽然类构造器里面可以做一些初始化的工作，但是类构造器不能使用await执行异步方法，所以特别添加了这个装饰器。
 
 ## Autowired
 用于属性注入，用法如下
@@ -133,22 +315,12 @@ export class HomeController{
   }
 }
 ```
-dogboot同时也支持构造器注入，用法如下
-```typescript
-@Controller()
-export class HomeController{
-  constructor(private readonly userService: UserService){}
+前面的样例我们都是使用构造器注入，如果你喜欢，你也可以使用属性注入。
 
-  GetMapping()
-  index(){
-    return this.userService.doSomething()
-  }
-}
-```
-大部分情况下，两者功能一致，唯一的不同是：Autowired可以实现循环依赖，虽然应该尽量避免出现循环依赖，但是我们也为那些特殊情况做了考虑。加入UserService依赖ItemService，同时ItemService又依赖UserService，你可以使用一种“稍微难懂”的写法来实现循环依赖。用法如下
+大部分情况下，两者功能一致，唯一的不同是：Autowired可以实现循环依赖，虽然应该尽量避免出现循环依赖，但是我们也为那些特殊情况做了考虑。假如UserService依赖ItemService，同时ItemService又依赖UserService，你可以使用一种“稍微难懂”的写法来实现循环依赖。用法如下
 
 UserService.ts
-```
+```typescript
 @Component
 export class UserService {
 
@@ -164,7 +336,7 @@ export class UserService {
 }
 ```
 ItemService.ts
-```
+```typescript
 @Component
 export class ItemService {
 
@@ -181,15 +353,32 @@ export class ItemService {
 ```
 仔细看，使用了@Autowired(() => UserService)而不是@Autowired(UserService)
 
+使用@Autowired(UserService)会出现在ItemService中解析UserService时UserService为空或者在UserService中解析ItemService时ItemService的情况，这取决于两者的加载顺序。
+
 ## @Mapping
 用于将Controller内的方法映射为路由，需要传入method以及path参数。这两个参数不是必须的，默认会映射get方法，并且使用方法名作为路由，为了方便书写，我们提前准备好了几种常用的method对应的Mapping。分别是@GetMapping、@PostMapping、@PutMapping、@PatchMapping、@DeleteMapping、@HeadMapping。如果你要映射所有的method，可以使用AllMapping，你将可以使用任何method来请求此路由。
 ## BindContext
-用于获取请求上下文信息，这个上下文信息完全是koa提供的请求上下文，所以你可以从koa官网找到关于请求上下文的详细介绍，使用方式如下
-```
+用于获取请求上下文信息使用方式如下
+```typescript
 @Controller()
 export class HomeController{
   GetMapping()
-  index(@BindContext ctx:Koa.Context){
+  index(@BindContext ctx:any){
+    console.log(ctx.query.name)
+    return 'ok'
+  }
+}
+```
+这个上下文信息完全是koa提供的请求上下文，所以你可以从koa官网找到关于请求上下文的详细介绍，所以如果你需要一些类型检查以及智能提示，你可以安装koa的typeing库
+```bash
+npm i @types/koa -D
+```
+然后你的HomeController可以写成
+```typescript
+@Controller()
+export class HomeController{
+  GetMapping()
+  index(@BindContext ctx:koa.Context){
     console.log(ctx.query.name)
     return 'ok'
   }
@@ -209,8 +398,24 @@ export class HomeController{
 ## @NotNull
 对于请求参数，你可能需要做一些通用的验证，避免冗余代码，此装饰器用于指定此字段不可为空。
 
-类似的装饰器还有：@NotEmpty、@NotBlank、@Length、@MinLength、@MaxLength、@Range、@Min、@Max、@Decimal、@MinDecimal、@MaxDecimal、@Reg、你也可以使用更加灵活的@Func，支持传入自定义的验证方法。除了这些已经预先定义的验证装饰器，你还可以封装自己的验证装饰器，参考dogboot中@NotNull的源码
+举个例子
+```typescript
+import { Typed, NotNull } from "dogboot";
+
+export class IndexIM {
+    @Typed()
+    pageSize: number
+
+    @Typed()
+    pageIndex: number
+
+    @Typed()
+    @NotNull()
+    status: number
+}
 ```
+类似的装饰器还有：@NotEmpty、@NotBlank、@Length、@MinLength、@MaxLength、@Range、@Min、@Max、@Decimal、@MinDecimal、@MaxDecimal、@Reg、你也可以使用更加灵活的@Func，支持传入自定义的验证方法。除了这些已经预先定义的验证装饰器，你还可以封装自己的验证装饰器，参考dogboot中@NotNull的源码
+```typescript
 /**
  * a != null
  * @param errorMesage 
@@ -225,3 +430,76 @@ export function NotNull(errorMesage: string = null) {
     })
 }
 ```
+实现一个你自己的验证器
+```typescript
+import { Func } from "dogboot";
+
+export function MyValidator(errorMesage: string = null) {
+    errorMesage = errorMesage || '自定义验证不通过'
+    return Func(a => {
+        if (a.includes('1')) {
+            return [true]
+        }
+        return [false, errorMesage]
+    })
+}
+```
+使用
+
+新建一个类，内容如下
+```typescript
+import { Typed, NotNull } from "dogboot";
+import { MyValidator } from "../../common/validator/MyValidator";
+
+export class UpdateNameIM {
+    @Typed()
+    @NotNull()
+    @MyValidator()
+    name: string
+}
+```
+修改我们的控制器为
+```typescript
+import { Controller, GetMapping, BindQuery, PostMapping, BindBody } from "dogboot";
+import { StartUp1 } from "../startup/StartUp1";
+import { MyConfig } from "../MyConfig";
+import { HomeService } from "../service/HomeService";
+import { UpdateNameIM } from "../model/home/UpdateNameIM";
+
+@Controller('/home')
+export class HomeController {
+    constructor(private readonly startUp1: StartUp1, private readonly myConfig: MyConfig, private readonly homeService: HomeService) { }
+
+    @GetMapping('/index')
+    async index(@BindQuery('name') name: string) {
+        let index = this.startUp1.doSth();
+        return `Hello ${name} ${index} ${this.myConfig.host} ${this.homeService.getSth()}`
+    }
+
+    @PostMapping('/updateName')
+    async updateName(@BindBody im: UpdateNameIM) {
+        return im
+    }
+}
+```
+我们加上了一个名字为updateName的action，并且映射为post方法，我们可以在postman测试这个接口
+
+如果我们post参数为
+```json
+{
+	"name":2
+}
+```
+那么我们会看到我们程序的控制台有错误打印，类似于
+```
+  Error: 自定义验证不通过
+      at C:\Users\zhang\Desktop\dogboot-demo\node_modules\dogboot\dist\lib\DogBoot.js:589:23
+      at Generator.next (<anonymous>)
+      at fulfilled (C:\Users\zhang\Desktop\dogboot-demo\node_modules\dogboot\dist\lib\DogBoot.js:13:58)
+      at process._tickCallback (internal/process/next_tick.js:68:7)
+```
+postman测试工具收到的回复是
+```
+Internal Server Error
+```
+当然，正常的程序不应该这样任由错误出现而不处理，我们会在稍后介绍如何优雅的进行错误处理。

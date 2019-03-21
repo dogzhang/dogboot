@@ -1,9 +1,9 @@
 import fs = require('fs');
 import path = require('path');
-import Router = require('koa-router');
-import koaBody = require('koa-body');
-import koaStatic = require('koa-static');
-import * as Koa from 'koa'
+let Router = require('koa-router');
+let koaBody = require('koa-body');
+let koaStatic = require('koa-static');
+let Koa = require('koa');
 import 'reflect-metadata'
 import { Server } from 'net';
 
@@ -66,7 +66,7 @@ class Utils {
 
 @Component
 export class DogBootApplication {
-    app: Koa = new Koa()
+    app = new Koa()
     server: Server
     ready: boolean = false
     private port: number = 3000
@@ -119,13 +119,13 @@ export class DogBootApplication {
 
         this.controllerClasses.push(_Class)
     }
-    private checkAndHandleActionName(actionName: string, _Class: Function, controllerName: string, router: Router) {
+    private checkAndHandleActionName(actionName: string, _Class: Function, controllerName: string, router: any) {
         let _prototype = _Class.prototype
         let action = _prototype[actionName]
         if (!action.$method) {
             return
         }
-        router[action.$method](action.$path, async (ctx: Koa.Context) => {
+        router[action.$method](action.$path, async (ctx: any) => {
             if (!this.ready) {
                 return
             }
@@ -151,7 +151,7 @@ export class DogBootApplication {
             }
         })
     }
-    private async handleContext(actionName: string, _Class: Function, controllerName: string, ctx: Koa.Context) {
+    private async handleContext(actionName: string, _Class: Function, controllerName: string, ctx: any) {
         let _prototype = _Class.prototype
         let instance = await this.container.getComponentInstanceFromFactory(_prototype.constructor)
         let $params = instance[actionName].$params || []//使用@Bind...注册的参数，没有使用@Bind...装饰的参数将保持为null
@@ -464,38 +464,38 @@ export function HeadMapping(path: string = null) {
     return Mapping('head', path)
 }
 
-export function BindContext(target, name: string, index: number) {
+export function BindContext(target: any, name: string, index: number) {
     target[name].$params = target[name].$params || []
-    target[name].$params[index] = (ctx: Koa.Context) => [ctx, false]
+    target[name].$params[index] = (ctx: any) => [ctx, false]
 }
 
-export function BindRequest(target, name: string, index: number) {
+export function BindRequest(target: any, name: string, index: number) {
     target[name].$params = target[name].$params || []
-    target[name].$params[index] = (ctx: Koa.Context) => [ctx.request, false]
+    target[name].$params[index] = (ctx: any) => [ctx.request, false]
 }
 
-export function BindResponse(target, name: string, index: number) {
+export function BindResponse(target: any, name: string, index: number) {
     target[name].$params = target[name].$params || []
-    target[name].$params[index] = (ctx: Koa.Context) => [ctx.response, false]
+    target[name].$params[index] = (ctx: any) => [ctx.response, false]
 }
 
 export function BindQuery(key: string) {
     return function (target, name: string, index: number) {
         target[name].$params = target[name].$params || []
-        target[name].$params[index] = (ctx: Koa.Context) => [ctx.query[key], true]
+        target[name].$params[index] = (ctx: any) => [ctx.query[key], true]
     }
 }
 
 export function BindPath(key: string) {
     return function (target, name: string, index: number) {
         target[name].$params = target[name].$params || []
-        target[name].$params[index] = (ctx: Koa.Context) => [(ctx as any).params[key], true]
+        target[name].$params[index] = (ctx: any) => [(ctx as any).params[key], true]
     }
 }
 
-export function BindBody(target, name: string, index: number) {
+export function BindBody(target: any, name: string, index: number) {
     target[name].$params = target[name].$params || []
-    target[name].$params[index] = (ctx: Koa.Context) => [ctx.request.body, true]
+    target[name].$params[index] = (ctx: any) => [ctx.request.body, true]
 }
 
 export function Typed(sourceNameOrGetSourceNameFunc: string | ((targetName: string) => string) = null) {
@@ -549,7 +549,7 @@ class TypeSpecifiedMap {
     sourceName: string
 }
 
-export function Valid(target, name: string) {
+export function Valid(target:any, name: string) {
     target.$validator = target.$validator || {}
     target.$validator[name] = target.$validator[name] || []
 }
@@ -722,14 +722,14 @@ export class ViewResult {
 }
 
 export class ActionFilterContext {
-    constructor(ctx: Koa.Context, params: any[], paramTypes: Function[], controller: Function, action: string) {
+    constructor(ctx: any, params: any[], paramTypes: Function[], controller: Function, action: string) {
         this.ctx = ctx
         this.params = params
         this.paramTypes = paramTypes
         this.controller = controller
         this.action = action
     }
-    public readonly ctx: Koa.Context
+    public readonly ctx: any
     params: any[]
     public readonly paramTypes: Function[]
     public readonly controller: Function
@@ -749,12 +749,12 @@ export function UseActionFilter(actionFilter: Function) {
     }
 }
 
-export function DoBefore(target, name: string) {
+export function DoBefore(target:any, name: string) {
     target.$actionHandlerMap = target.$actionHandlerMap || new Map()
     target.$actionHandlerMap.set(DoBefore, name)
 }
 
-export function DoAfter(target, name: string) {
+export function DoAfter(target:any, name: string) {
     target.$actionHandlerMap = target.$actionHandlerMap || new Map()
     target.$actionHandlerMap.set(DoAfter, name)
 }
@@ -777,6 +777,6 @@ export function ExceptionHandler(type: Function) {
     }
 }
 
-export function Init(target, name: string) {
+export function Init(target:any, name: string) {
     target.$initMethod = name
 }
