@@ -1,4 +1,4 @@
-import { Typed, TypedArray, Range, MinLength, Max, Valid, NotNull, Underscore } from "../../lib/DogBoot";
+import { Typed, TypedArray, Valid, NotNull } from "../../lib/DogBoot";
 import { School } from "./School";
 import { Email } from "./Email";
 
@@ -10,7 +10,7 @@ export class SendIM {
     @Typed()
     name: string
 
-    @Typed(Underscore)
+    @Typed()
     nickName: string
 
     @Typed()

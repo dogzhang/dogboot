@@ -77,6 +77,11 @@ export class DogBootApplication {
     private execRootPath: string
     private container: DIContainer
     private controllerClasses: Function[] = []
+
+    /**
+     * app根目录，dogbooot会自动扫描子目录下的dist/controller/以及dist/startup/
+     * @param appRootPath 
+     */
     constructor(private readonly appRootPath: string) {
         this.container = new DIContainer(appRootPath)
         let execFileName = process.argv[1]
@@ -86,7 +91,6 @@ export class DogBootApplication {
             this.execRootPath = path.join(appRootPath, 'dist')
         }
         this.container.setComponentInstance(DogBootApplication, this)
-        this.container.setComponentInstance(DIContainer, this.container)
     }
     private build() {
         let publicRootPath = path.join(this.appRootPath, 'public')
@@ -238,26 +242,59 @@ export class DogBootApplication {
             await this.container.getComponentInstanceFromFactory(componentClass as Function)
         }
     }
+
+    /**
+     * 设置整个app的路由前缀
+     * @param prefix 前缀，比如：/api
+     */
     setPrefix(prefix: string) {
         this.prefix = prefix
         return this
     }
+
+    /**
+     * 设置app的端口
+     * @param port 端口，默认为3000
+     */
     setPort(port: number) {
         this.port = port
         return this
     }
+
+    /**
+     * 设置html渲染器
+     * @param render 一个渲染器函数，此函数接收以下参数
+     * @param controllerName 控制器名称，已去除Controller后缀，且转换为小写，比如：HomeController -> home
+     * @param actionName Action名称，取方法名称，而不是映射的路由地址，比如：GetMapping('/getname') getName(){} -> getName
+     * @param data 渲染页面的数据
+     * 渲染器需要返回一个字符串，这个字符串就是最终渲染出来的html
+     */
     setRender(render: (controllerName: string, actionName: string, data: any) => string) {
         this.render = render
         return this
     }
+
+    /**
+     * 设置全局异常过滤器
+     * @param exceptionFilter 
+     */
     useExceptionFilter(exceptionFilter: Function) {
         this.globalExceptionFilter = exceptionFilter
         return this
     }
+
+    /**
+     * 设置全局Action过滤器
+     * @param actionFilter 
+     */
     useActionFilter(actionFilter: Function) {
         this.globalActionFilters.push(actionFilter)
         return this
     }
+
+    /**
+     * 启动程序，此方法中，所有组件包括StartUp都会初始化，然后才开始接受http请求
+     */
     run() {
         let startTime = Date.now()
         this.build()
@@ -270,10 +307,27 @@ export class DogBootApplication {
         })
         return this
     }
+
+    /**
+     * 设置组件实例，实际上是从一个Map<any, any>获取数据，所以key、value可以自由设置以及获取
+     * @param key 组件key，可以是任意值
+     * @param instance 组件实例，可以是任意值
+     */
+    setComponentInstance(key: any, instance: any) {
+        this.container.setComponentInstance(key, instance)
+    }
+
+    /**
+     * 根据key获取组件实例，实际上是从一个Map<any, any>获取数据，所以key、value可以自由设置以及获取
+     * DogBootApplication也是一个组件，并且加入到容器，所以你可以在你的组件中使用，比如：private readonly app: DogBootApplication
+     * @param key 
+     */
+    getComponentInstance<T>(key: any): T {
+        return this.container.getComponentInstance(key)
+    }
 }
 
-@Component
-export class DIContainer {
+class DIContainer {
     private componentInstanceMap: Map<any, any> = new Map()
     constructor(private readonly appRootPath: string) {
     }
@@ -282,10 +336,7 @@ export class DIContainer {
         this.componentInstanceMap.set(key, instance)
     }
 
-    async getComponentInstance<T>(key: any): Promise<T> {
-        if (key.prototype && key.prototype.$lifetime != null) {
-            return await this.getComponentInstanceFromFactory(key)
-        }
+    getComponentInstance<T>(key: any): T {
         return this.componentInstanceMap.get(key)
     }
 
@@ -359,6 +410,9 @@ export class DIContainer {
     }
 }
 
+/**
+ * 包含一些公开的实用工具方法
+ */
 export class DogUtils {
     static getTypeSpecifiedValue<T>(type: Function, oldVal: any): T {
         if (oldVal == null) {
@@ -390,10 +444,21 @@ export class DogUtils {
     }
 }
 
+/**
+ * 指定此类为组件，生命周期将完全交给dogboot管理
+ * 所有组件将在程序启动的时候初始化完成，所有组件初始化完成后，程序才会开始接受http请求
+ * @param target 
+ */
 export function Component(target: Function) {
     Utils.markAsComponent(target)
 }
 
+/**
+ * 指定此类为预启动组件，将在程序启动时预先启动。
+ * 事实上，所有的组件只要被使用到都会在程序启动时预先启动，使用StartUp标记那些没有被其他组件使用的组件，确保此组件也能启动
+ * StartUp是一种特殊的Component
+ * @param order 启动顺序，值越大越优先启动
+ */
 export function StartUp(order: number = 0) {
     return function (target: Function) {
         target.prototype.$order = order
@@ -401,6 +466,11 @@ export function StartUp(order: number = 0) {
     }
 }
 
+/**
+ * 指定此类为控制器
+ * Controller是一种特殊的Component
+ * @param path 映射到的路由，默认取类名前一部分，比如HomeController默认映射到/Home，Home也映射到/Home
+ */
 export function Controller(path: string = null) {
     return function (target: Function) {
         target.prototype.$path = path || '/' + target.name.replace(/controller$/i, '')
@@ -408,6 +478,11 @@ export function Controller(path: string = null) {
     }
 }
 
+/**
+ * 表示一个配置文件映射器
+ * Config是一种特殊的Component
+ * @param field 需要映射的节
+ */
 export function Config(field: string = null) {
     return function (target: Function) {
         target.prototype.$isConfig = true
@@ -416,8 +491,12 @@ export function Config(field: string = null) {
     }
 }
 
+/**
+ * 通过属性注入依赖的组件
+ * @param type 
+ */
 export function Autowired(type: Function) {
-    return function (target, name: string) {
+    return function (target: any, name: string) {
         if (!type) {
             console.error(`${target.constructor.name}中存在不正确的循环依赖${name}，请使用@Autowired(() => type of ${name})注入此依赖项`)
             process.abort()
@@ -427,8 +506,13 @@ export function Autowired(type: Function) {
     }
 }
 
+/**
+ * 映射此方法为Action
+ * @param type method类型，默认为get
+ * @param path 映射到的路由，默认为action名称
+ */
 export function Mapping(type: string = 'get', path: string = null) {
-    return function (target, name: string) {
+    return function (target: any, name: string) {
         let action = target[name]
         action.$method = type.toLowerCase()
         action.$path = path || '/' + action.name
@@ -436,77 +520,141 @@ export function Mapping(type: string = 'get', path: string = null) {
     }
 }
 
+/**
+ * 映射此方法为Action，允许所有类型的method请求
+ * @param path 映射到的路由，默认为action名称
+ */
 export function AllMapping(path: string = null) {
     return Mapping('all', path)
 }
 
+/**
+ * 映射此方法为Action，只允许get请求
+ * @param path 映射到的路由，默认为action名称
+ */
 export function GetMapping(path: string = null) {
     return Mapping('get', path)
 }
 
+/**
+ * 映射此方法为Action，只允许post请求
+ * @param path 映射到的路由，默认为action名称
+ */
 export function PostMapping(path: string = null) {
     return Mapping('post', path)
 }
 
+/**
+ * 映射此方法为Action，只允许put请求
+ * @param path 映射到的路由，默认为action名称
+ */
 export function PutMapping(path: string = null) {
     return Mapping('put', path)
 }
 
+/**
+ * 映射此方法为Action，只允许patch请求
+ * @param path 映射到的路由，默认为action名称
+ */
 export function PatchMapping(path: string = null) {
     return Mapping('patch', path)
 }
 
+/**
+ * 映射此方法为Action，只允许delete请求
+ * @param path 映射到的路由，默认为action名称
+ */
 export function DeleteMapping(path: string = null) {
     return Mapping('delete', path)
 }
 
+/**
+ * 映射此方法为Action，只允许head请求
+ * @param path 映射到的路由，默认为action名称
+ */
 export function HeadMapping(path: string = null) {
     return Mapping('head', path)
 }
 
+/**
+ * 绑定koa原生的context
+ * 只能在Controller中使用
+ */
 export function BindContext(target: any, name: string, index: number) {
     target[name].$params = target[name].$params || []
     target[name].$params[index] = (ctx: any) => [ctx, false]
 }
 
+/**
+ * 绑定koa原生的request
+ * 只能在Controller中使用
+ */
 export function BindRequest(target: any, name: string, index: number) {
     target[name].$params = target[name].$params || []
     target[name].$params[index] = (ctx: any) => [ctx.request, false]
 }
 
+/**
+ * 绑定koa原生的response
+ * 只能在Controller中使用
+ */
 export function BindResponse(target: any, name: string, index: number) {
     target[name].$params = target[name].$params || []
     target[name].$params[index] = (ctx: any) => [ctx.response, false]
 }
 
+/**
+ * 绑定url中的query参数
+ * 只能在Controller中使用
+ * @param key 参数名称
+ */
 export function BindQuery(key: string) {
-    return function (target, name: string, index: number) {
+    return function (target: any, name: string, index: number) {
         target[name].$params = target[name].$params || []
         target[name].$params[index] = (ctx: any) => [ctx.query[key], true]
     }
 }
 
+/**
+ * 绑定url中的path参数
+ * 只能在Controller中使用
+ * @param key 参数名称
+ */
 export function BindPath(key: string) {
-    return function (target, name: string, index: number) {
+    return function (target: any, name: string, index: number) {
         target[name].$params = target[name].$params || []
         target[name].$params[index] = (ctx: any) => [(ctx as any).params[key], true]
     }
 }
 
+/**
+ * 只能在Controller中使用
+ * 绑定请求体参数
+ */
 export function BindBody(target: any, name: string, index: number) {
     target[name].$params = target[name].$params || []
     target[name].$params[index] = (ctx: any) => [ctx.request.body, true]
 }
 
+/**
+ * 指定此字段需要转换为指定类型
+ * @param type 确切类型
+ * @param sourceNameOrGetSourceNameFunc 映射的原始字段或者映射规则，默认为此字段名字
+ */
 export function Typed(sourceNameOrGetSourceNameFunc: string | ((targetName: string) => string) = null) {
-    return function (target, name: string) {
+    return function (target: any, name: string) {
         target.$fields = target.$fields || {}
         target.$fields[name] = new TypeSpecifiedMap(TypeSpecifiedType.General, Reflect.getMetadata('design:type', target, name), getSourceName(name, sourceNameOrGetSourceNameFunc))
     }
 }
 
+/**
+ * 指定此Array字段的确切类型需要转换为指定类型
+ * @param type 确切类型
+ * @param sourceNameOrGetSourceNameFunc 映射的原始字段或者映射规则，默认为此字段名字
+ */
 export function TypedArray(type: Function, sourceNameOrGetSourceNameFunc: string | ((targetName: string) => string) = null) {
-    return function (target, name: string) {
+    return function (target: any, name: string) {
         target.$fields = target.$fields || {}
         target.$fields[name] = new TypeSpecifiedMap(TypeSpecifiedType.Array, type, getSourceName(name, sourceNameOrGetSourceNameFunc))
     }
@@ -520,17 +668,6 @@ function getSourceName(targetName: string, sourceNameOrGetSourceNameFunc: string
         return sourceNameOrGetSourceNameFunc
     }
     return (sourceNameOrGetSourceNameFunc as Function)(targetName)
-}
-
-/**
- * 返回给定字符串转换成小写，并且使用下划线连接的新字符串
- * @param targetName 
- */
-export function Underscore(targetName: string): string {
-    if (!targetName) {
-        return targetName
-    }
-    return targetName.replace(/[A-Z]/g, a => '_' + a.toLowerCase()).replace(/^_/, '')
 }
 
 enum TypeSpecifiedType {
@@ -549,13 +686,20 @@ class TypeSpecifiedMap {
     sourceName: string
 }
 
-export function Valid(target:any, name: string) {
+/**
+ * 指定此Array类型需要验证其确切类型
+ */
+export function Valid(target: any, name: string) {
     target.$validator = target.$validator || {}
     target.$validator[name] = target.$validator[name] || []
 }
 
+/**
+ * 用于自定义自己的验证器，所有dogboot内置验证器也是基于此来实现
+ * @param func 验证规则
+ */
 export function Func(func: (arg0: any) => [boolean, string?]) {
-    return function (target, name: string) {
+    return function (target: any, name: string) {
         target.$validator = target.$validator || {}
         target.$validator[name] = target.$validator[name] || []
         target.$validator[name].push(async a => {
@@ -569,7 +713,7 @@ export function Func(func: (arg0: any) => [boolean, string?]) {
 
 /**
  * a != null
- * @param errorMesage 
+ * @param errorMesage 错误消息，默认为：字段不能为空
  */
 export function NotNull(errorMesage: string = null) {
     errorMesage = errorMesage || '字段不能为空'
@@ -583,7 +727,7 @@ export function NotNull(errorMesage: string = null) {
 
 /**
  * a != null && a.length > 0
- * @param errorMesage 
+ * @param errorMesage 错误消息，默认为：字段不能为空
  */
 export function NotEmpty(errorMesage: string = null) {
     errorMesage = errorMesage || '字段不能为空'
@@ -597,7 +741,7 @@ export function NotEmpty(errorMesage: string = null) {
 
 /**
  * a != null && a.trim().length > 0
- * @param errorMesage 
+ * @param errorMesage 错误消息，默认为：字段不能为空
  */
 export function NotBlank(errorMesage: string = null) {
     errorMesage = errorMesage || '字段不能为空'
@@ -609,6 +753,13 @@ export function NotBlank(errorMesage: string = null) {
     })
 }
 
+/**
+ * 长度验证器，只能用于String、Array的验证
+ * 不会对null值进行验证，如需同时验证null，请添加@NotNull
+ * @param min 最小长度
+ * @param max 最大长度
+ * @param errorMesage 错误消息，默认为：字段长度必须小于或等于${max} | 字段长度必须大于或等于${min} | 字段长度必须介于${min} ~ ${max}
+ */
 export function Length(min: number, max: number, errorMesage: string = null) {
     if (min == null) {
         errorMesage = errorMesage || `字段长度必须小于或等于${max}`
@@ -628,14 +779,33 @@ export function Length(min: number, max: number, errorMesage: string = null) {
     })
 }
 
+/**
+ * 最小长度验证器，只能用于String、Array的验证
+ * 不会对null值进行验证，如需同时验证null，请添加@NotNull
+ * @param length 最小长度
+ * @param errorMesage 错误消息，默认为：字段长度必须大于或等于${length}
+ */
 export function MinLength(length: number, errorMesage: string = null) {
     return Length(length, null, errorMesage)
 }
 
+/**
+ * 最大长度验证器，只能用于String、Array的验证
+ * 不会对null值进行验证，如需同时验证null，请添加@NotNull
+ * @param length 最大长度
+ * @param errorMesage 错误消息，默认为：字段长度必须小于或等于${length}
+ */
 export function MaxLength(length: number, errorMesage: string = null) {
     return Length(null, length, errorMesage)
 }
 
+/**
+ * 数值大小验证器，只能用于Number的验证
+ * 不会对null值进行验证，如需同时验证null，请添加@NotNull
+ * @param min 最小数值
+ * @param max 最大数值
+ * @param errorMesage 错误消息，默认为：字段值必须小于或等于${max} | 字段值必须大于或等于${min} | 字段值必须介于${min} ~ ${max}
+ */
 export function Range(min: number, max: number, errorMesage: string = null) {
     if (min == null) {
         errorMesage = errorMesage || `字段值必须小于或等于${max}`
@@ -655,14 +825,33 @@ export function Range(min: number, max: number, errorMesage: string = null) {
     })
 }
 
-export function Min(length: number, errorMesage: string = null) {
-    return Range(length, null, errorMesage)
+/**
+ * 最小数值大小验证器，只能用于Number的验证
+ * 不会对null值进行验证，如需同时验证null，请添加@NotNull
+ * @param val 最小数值
+ * @param errorMesage 错误消息，默认为：字段值必须大于或等于${val}
+ */
+export function Min(val: number, errorMesage: string = null) {
+    return Range(val, null, errorMesage)
 }
 
-export function Max(length: number, errorMesage: string = null) {
-    return Range(null, length, errorMesage)
+/**
+ * 最大数值大小验证器，只能用于Number的验证
+ * 不会对null值进行验证，如需同时验证null，请添加@NotNull
+ * @param val 最大数值
+ * @param errorMesage 错误消息，默认为：字段值必须小于或等于${val}
+ */
+export function Max(val: number, errorMesage: string = null) {
+    return Range(null, val, errorMesage)
 }
 
+/**
+ * 小数位验证器，只能用于Number的验证
+ * 不会对null值进行验证，如需同时验证null，请添加@NotNull
+ * @param min 最小的小数位长度
+ * @param max 最大的小数位长度
+ * @param errorMesage 错误消息，默认为：小数点位数必须小于或等于${max} | 小数点位数必须大于或等于${min} | 小数点位数必须介于${min} ~ ${max}
+ */
 export function Decimal(min: number, max: number, errorMesage: string = null) {
     if (min == null) {
         errorMesage = errorMesage || `小数点位数必须小于或等于${max}`
@@ -682,14 +871,32 @@ export function Decimal(min: number, max: number, errorMesage: string = null) {
     })
 }
 
+/**
+ * 最小小数位验证器，只能用于Number的验证
+ * 不会对null值进行验证，如需同时验证null，请添加@NotNull
+ * @param length 最小的小数位长度
+ * @param errorMesage 错误消息，默认为：小数点位数必须大于或等于${length}
+ */
 export function MinDecimal(length: number, errorMesage: string = null) {
     return Decimal(length, null, errorMesage)
 }
 
+/**
+ * 最大小数位验证器，只能用于Number的验证
+ * 不会对null值进行验证，如需同时验证null，请添加@NotNull
+ * @param length 最大的小数位长度
+ * @param errorMesage 错误消息，默认为：小数点位数必须小于或等于${length}
+ */
 export function MaxDecimal(length: number, errorMesage: string = null) {
     return Decimal(null, length, errorMesage)
 }
 
+/**
+ * 正则表达式验证器，只能用于String的验证
+ * 不会对null值进行验证，如需同时验证null，请添加@NotNull
+ * @param pattern 正则规则
+ * @param errorMesage 错误消息，默认为：字段格式不符合要求
+ */
 export function Reg(pattern: RegExp, errorMesage: string = null) {
     errorMesage = errorMesage || '字段格式不符合要求'
     return Func(a => {
@@ -703,6 +910,9 @@ export function Reg(pattern: RegExp, errorMesage: string = null) {
     })
 }
 
+/**
+ * 请求参数不合法异常
+ */
 export class IllegalArgumentException extends Error {
     constructor(message: string, targetName: string, fieldName: string) {
         super(message)
@@ -713,6 +923,9 @@ export class IllegalArgumentException extends Error {
     fieldName: string
 }
 
+/**
+ * 表示一个html输出
+ */
 export class ViewResult {
     data: any
 
@@ -721,6 +934,9 @@ export class ViewResult {
     }
 }
 
+/**
+ * ActionFilter中DoBefore以及DoAfter方法接受到的参数
+ */
 export class ActionFilterContext {
     constructor(ctx: any, params: any[], paramTypes: Function[], controller: Function, action: string) {
         this.ctx = ctx
@@ -736,8 +952,13 @@ export class ActionFilterContext {
     public readonly action: string
 }
 
+/**
+ * 指定Controller或者一个Action使用指定的Action过滤器
+ * 只能用于Controller中
+ * @param actionFilter 要使用的过滤器
+ */
 export function UseActionFilter(actionFilter: Function) {
-    return function (target, name: string = null) {
+    return function (target: any, name: string = null) {
         if (name == null) {
             target.prototype.$actionFilters = target.prototype.$actionFilters || []
             target.prototype.$actionFilters.unshift(actionFilter)
@@ -749,18 +970,29 @@ export function UseActionFilter(actionFilter: Function) {
     }
 }
 
-export function DoBefore(target:any, name: string) {
+/**
+ * 在ActionFilter标记一个方法，此方法将在Action执行前执行
+ */
+export function DoBefore(target: any, name: string) {
     target.$actionHandlerMap = target.$actionHandlerMap || new Map()
     target.$actionHandlerMap.set(DoBefore, name)
 }
 
-export function DoAfter(target:any, name: string) {
+/**
+ * 在ActionFilter标记一个方法，此方法将在Action执行后执行
+ */
+export function DoAfter(target: any, name: string) {
     target.$actionHandlerMap = target.$actionHandlerMap || new Map()
     target.$actionHandlerMap.set(DoAfter, name)
 }
 
+/**
+ * 指定Controller或者一个Action使用指定的异常过滤器
+ * 只能用于Controller中
+ * @param exceptionFilter 要使用的过滤器
+ */
 export function UseExceptionFilter(exceptionFilter: Function) {
-    return function (target, name: string = null) {
+    return function (target: any, name: string = null) {
         if (name == null) {
             target.prototype.$exceptionFilter = exceptionFilter
         } else {
@@ -770,13 +1002,20 @@ export function UseExceptionFilter(exceptionFilter: Function) {
     }
 }
 
+/**
+ * 在ExceptionFilter中，标记一个方法，用于处理指定类型的异常
+ * @param type 要处理的异常类型
+ */
 export function ExceptionHandler(type: Function) {
-    return function (target, name: string) {
+    return function (target: any, name: string) {
         target.$exceptionHandlerMap = target.$exceptionHandlerMap || new Map()
         target.$exceptionHandlerMap.set(type, name)
     }
 }
 
-export function Init(target:any, name: string) {
+/**
+ * 在组件中标记一个方法，使其在组件初始化时执行，支持异步方法
+ */
+export function Init(target: any, name: string) {
     target.$initMethod = name
 }

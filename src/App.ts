@@ -13,7 +13,6 @@ new DogBootApplication(appRoot)
     .useExceptionFilter(MyExceptionFilter)
     .useActionFilter(ActionFilter0)
     .useActionFilter(ActionFilter1)
-    .setPrefix('/api')
     .setPort(3000)
     .setRender((controllerName: string, actionName: string, data: any) => {
         var viewFullPath = path.join(viewPath, controllerName, actionName) + '.pug'

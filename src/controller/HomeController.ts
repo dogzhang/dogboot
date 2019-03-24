@@ -10,10 +10,11 @@ import { ActionFilter5 } from "../filter/ActionFilter5";
 @UseActionFilter(ActionFilter2)
 @UseActionFilter(ActionFilter3)
 export class HomeController {
-    @GetMapping('/index/:id')
+    @GetMapping('/index')
     @UseActionFilter(ActionFilter4)
     @UseActionFilter(ActionFilter5)
     async index(@BindQuery('a') a: number) {
+        console.log('执行/home/index')
         return JsonResultUtil.ok(a)
     }
 
