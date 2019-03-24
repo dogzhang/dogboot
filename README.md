@@ -114,9 +114,9 @@ Hello World
 ## DogBootApplication
 一个dogboot程序始于DogBootApplication类，只需要提供一个appRootPath参数就可以了。执行run方法的时候，dogboot会扫描appRootPath目录下的以下文件夹。
 
-dist/controller：此目录包含所有的控制器文件，关于controller的更多介绍，请参考[@Controller](#@controller)
+dist/controller：此目录包含所有的控制器文件，关于controller的更多介绍，请参考[@Controller](#Controller)
 
-dist/startup：此目录包含所有的预启动组件，关于startup的更多介绍，请参考[@StartUp](#startup)
+dist/startup：此目录包含所有的预启动组件，关于startup的更多介绍，请参考[@StartUp](#StartUp)
 
 程序会自动判断当前的运行环境，如果是直接运行ts文件，会扫描src目录，如果是运行编译后的js文件，会扫描dist目录。
 
@@ -243,7 +243,7 @@ export class HomeController {
 ```
 Hello World 0 127.0.0.1
 ```
-我们的配置文件映射器生效了，MyConfig类映射了config.json，你在使用MyConfig的时候，所有的字段都是有类型声明的，并且已经转换为你希望的类型，这得益于我们使用了[@Typed](#@typed),dogboot会帮我们自动处理被@Typed标记的字段的类型。
+我们的配置文件映射器生效了，MyConfig类映射了config.json，你在使用MyConfig的时候，所有的字段都是有类型声明的，并且已经转换为你希望的类型，这得益于我们使用了[@Typed](#Typed),dogboot会帮我们自动处理被@Typed标记的字段的类型。
 
 如果这个config.json写法如下
 ```json
