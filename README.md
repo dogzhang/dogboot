@@ -1,5 +1,5 @@
 ## 介绍
-dogboot是一款用于nodejs的web框架，使用Typescript编写，支持最新的js/ts语法。在设计理念上，我们致敬了著名的Java框架Spring Boot，装饰器、依赖注入等等，都是web开发中最流行的技术。
+dogboot是一款用于nodejs的web框架，使用TypeScript编写，支持最新的js/ts语法。在设计理念上，我们致敬了著名的Java框架Spring Boot，装饰器、依赖注入等等，都是web开发中最流行的技术。
 ## 技术要点
 - 支持且仅支持TypeScript
 - 基于koa2
@@ -54,7 +54,7 @@ package.json是npm的包管理清单文件。现在，请打开这个文件，�
   "start": "node dist/App.js"
 }
 ```
-tsconfig.json是Typescript项目的可选配置文件，对于dogboot我们建议填入以下内容，
+tsconfig.json是TypeScript项目的可选配置文件，对于dogboot我们建议填入以下内容，
 ```json
 {
   "compilerOptions": {
