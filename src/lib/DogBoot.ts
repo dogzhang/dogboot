@@ -27,7 +27,7 @@ class Utils {
             if (fileState.isDirectory()) {
                 fileList = fileList.concat(Utils.getFileListInFolder(filePath))
             } else {
-                if (!filePath.endsWith('.d.ts')) {
+                if ((filePath.endsWith('.ts') || filePath.endsWith('js')) && !filePath.endsWith('.d.ts')) {
                     fileList.push(filePath)
                 }
             }
@@ -68,7 +68,7 @@ class Utils {
 export class DogBootApplication {
     app = new Koa()
     server: Server
-    ready: boolean = false
+    private readyToAcceptRequest: boolean = false
     private port: number = 3000
     private globalExceptionFilter: Function
     private render: Function
@@ -77,6 +77,7 @@ export class DogBootApplication {
     private execRootPath: string
     private container: DIContainer
     private controllerClasses: Function[] = []
+    private started: boolean = false
 
     /**
      * app根目录，dogbooot会自动扫描子目录下的dist/controller/以及dist/startup/
@@ -84,7 +85,7 @@ export class DogBootApplication {
      */
     constructor(private readonly appRootPath: string) {
         this.container = new DIContainer(appRootPath)
-        let execFileName = process.argv[1]
+        let execFileName = process.mainModule.filename
         if (execFileName.endsWith('.ts')) {
             this.execRootPath = path.join(appRootPath, 'src')
         } else {
@@ -97,24 +98,37 @@ export class DogBootApplication {
         this.app.use(koaStatic(publicRootPath))
         this.app.use(koaBody())
         let controllerRootPath = path.join(this.execRootPath, 'controller')
-        Utils.getFileListInFolder(controllerRootPath).forEach(a => { this.checkAndHandleControllerFile(a) })
+        let spiltStr = '/'
+        if (process.platform == 'win32') {
+            spiltStr = '\\'
+        }
+
+        Utils.getFileListInFolder(controllerRootPath).forEach(a => {
+            let controllerFilePathArr = path.relative(controllerRootPath, a).replace(/Controller\.(ts|js)$/i, '').split(spiltStr)
+            this.checkAndHandleControllerFile(a, controllerFilePathArr)
+        })
     }
-    private checkAndHandleControllerFile(filePath: string) {
+    private checkAndHandleControllerFile(filePath: string, controllerFilePathArr: string[]) {
         let _Module = require(filePath)
-        Object.values(_Module).filter(a => a instanceof Function).forEach((a: Function) => { this.checkAndHandleControllerClass(a) })
+        Object.values(_Module).filter(a => a instanceof Function).forEach((a: Function) => { this.checkAndHandleControllerClass(a, controllerFilePathArr) })
     }
-    private checkAndHandleControllerClass(_Class: Function) {
+    private checkAndHandleControllerClass(_Class: Function, controllerFilePathArr: string[]) {
         let _prototype = _Class.prototype
-        let controllerName = _Class.name.replace(/controller$/i, '').toLowerCase()
         let controllerPath = _prototype.$path
         if (!controllerPath) {
             return
         }
+        let prefix = ''
+        let areaPrefixArr = controllerFilePathArr.slice(0, controllerFilePathArr.length - 1)
+        if (areaPrefixArr.length) {
+            prefix += '/' + areaPrefixArr.join('/')
+        }
+        prefix += controllerPath
         let router = new Router({
-            prefix: controllerPath
+            prefix
         })
         Object.getOwnPropertyNames(_prototype).forEach(a => {
-            this.checkAndHandleActionName(a, _Class, controllerName, router)
+            this.checkAndHandleActionName(a, _Class, controllerFilePathArr, router)
         })
         if (this.prefix) {
             router.prefix(this.prefix)
@@ -123,18 +137,18 @@ export class DogBootApplication {
 
         this.controllerClasses.push(_Class)
     }
-    private checkAndHandleActionName(actionName: string, _Class: Function, controllerName: string, router: any) {
+    private checkAndHandleActionName(actionName: string, _Class: Function, controllerFilePathArr: string[], router: any) {
         let _prototype = _Class.prototype
         let action = _prototype[actionName]
         if (!action.$method) {
             return
         }
         router[action.$method](action.$path, async (ctx: any) => {
-            if (!this.ready) {
+            if (!this.readyToAcceptRequest) {
                 return
             }
             try {
-                await this.handleContext(actionName, _Class, controllerName, ctx)
+                await this.handleContext(actionName, _Class, controllerFilePathArr, ctx)
             } catch (err) {
                 let exceptionFilter = _prototype[actionName].$exceptionFilter || _prototype.$exceptionFilter || this.globalExceptionFilter
                 if (!exceptionFilter) {
@@ -155,7 +169,7 @@ export class DogBootApplication {
             }
         })
     }
-    private async handleContext(actionName: string, _Class: Function, controllerName: string, ctx: any) {
+    private async handleContext(actionName: string, _Class: Function, controllerFilePathArr: string[], ctx: any) {
         let _prototype = _Class.prototype
         let instance = await this.container.getComponentInstanceFromFactory(_prototype.constructor)
         let $params = instance[actionName].$params || []//使用@Bind...注册的参数，没有使用@Bind...装饰的参数将保持为null
@@ -199,7 +213,7 @@ export class DogBootApplication {
             if (ctx.status == 404) {
                 if (body instanceof ViewResult) {
                     if (this.render) {
-                        ctx.body = await this.render(controllerName, actionName, body.data)
+                        ctx.body = await this.render(controllerFilePathArr, actionName, body.data)
                     } else {
                         throw new Error('没有找到任何视图渲染器')
                     }
@@ -264,12 +278,12 @@ export class DogBootApplication {
     /**
      * 设置html渲染器
      * @param render 一个渲染器函数，此函数接收以下参数
-     * @param controllerName 控制器名称，已去除Controller后缀，且转换为小写，比如：HomeController -> home
+     * @param controllerFilePathArr 控制器相对于控制器根目录的路径拆分为数组，路径最后的Controller.js或者Controller.ts已经去除
      * @param actionName Action名称，取方法名称，而不是映射的路由地址，比如：GetMapping('/getname') getName(){} -> getName
      * @param data 渲染页面的数据
      * 渲染器需要返回一个字符串，这个字符串就是最终渲染出来的html
      */
-    setRender(render: (controllerName: string, actionName: string, data: any) => string) {
+    setRender(render: (controllerFilePathArr: string[], actionName: string, data: any) => string) {
         this.render = render
         return this
     }
@@ -296,15 +310,37 @@ export class DogBootApplication {
      * 启动程序，此方法中，所有组件包括StartUp都会初始化，然后才开始接受http请求
      */
     run() {
+        if (this.started) {
+            throw new Error('请勿重复启动程序')
+        }
+        this.started = true
+
         let startTime = Date.now()
         this.build()
         this.server = this.app.listen(this.port)
         this.startUp().then(async () => {
             await this.initComponents()
-            this.ready = true
+            this.readyToAcceptRequest = true
             let endTime = Date.now()
             console.log(`Your application has started at ${this.port} in ${endTime - startTime}ms`)
         })
+        return this
+    }
+
+    async runAsync() {
+        if (this.started) {
+            throw new Error('请勿重复启动程序')
+        }
+        this.started = true
+
+        let startTime = Date.now()
+        this.build()
+        this.server = this.app.listen(this.port)
+        await this.startUp()
+        await this.initComponents()
+        this.readyToAcceptRequest = true
+        let endTime = Date.now()
+        console.log(`Your application has started at ${this.port} in ${endTime - startTime}ms`)
         return this
     }
 
@@ -473,7 +509,7 @@ export function StartUp(order: number = 0) {
  */
 export function Controller(path: string = null) {
     return function (target: Function) {
-        target.prototype.$path = path || '/' + target.name.replace(/controller$/i, '')
+        target.prototype.$path = path || '/' + target.name.replace(/Controller$/i, '')
         Utils.markAsComponent(target)
     }
 }
