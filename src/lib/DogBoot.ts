@@ -83,8 +83,8 @@ export class DogBootApplication {
      * app根目录，dogbooot会自动扫描子目录下的dist/controller/以及dist/startup/
      * @param appRootPath 
      */
-    constructor(private readonly appRootPath: string) {
-        this.container = new DIContainer(appRootPath)
+    constructor(private readonly appRootPath: string, componentInstanceMap: Map<any, any> = null) {
+        this.container = new DIContainer(appRootPath, componentInstanceMap)
         let execFileName = process.mainModule.filename
         if (execFileName.endsWith('.ts')) {
             this.execRootPath = path.join(appRootPath, 'src')
@@ -364,8 +364,8 @@ export class DogBootApplication {
 }
 
 class DIContainer {
-    private componentInstanceMap: Map<any, any> = new Map()
-    constructor(private readonly appRootPath: string) {
+    constructor(private readonly appRootPath: string, private readonly componentInstanceMap: Map<any, any> = null) {
+        this.componentInstanceMap = this.componentInstanceMap || new Map()
     }
 
     setComponentInstance(key: any, instance: any) {
