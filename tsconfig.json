@@ -7,7 +7,7 @@
     "lib": [
       "es2017"
     ],
-    "outDir": "dist",
+    "outDir": "bin",
     "declaration": true,
     "sourceMap": true
   },

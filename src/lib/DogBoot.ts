@@ -1,347 +1,85 @@
 import fs = require('fs');
 import path = require('path');
-let Router = require('koa-router');
-let koaBody = require('koa-body');
-let koaStatic = require('koa-static');
-let Koa = require('koa');
+import chokidar = require('chokidar');
+let { Module } = require("module");
+import Router = require('koa-router');
+import koaBody = require('koa-body');
+import koaStatic = require('koa-static');
+import Koa = require('koa');
+import { Server } from 'http';
+import http = require('http');
 import 'reflect-metadata'
-import { Server } from 'net';
 
-class Utils {
-    static markAsComponent(target: Function) {
-        target.prototype.$isComponent = true
-        let paramTypes: Array<Function> = Reflect.getMetadata('design:paramtypes', target) || []
-        if (paramTypes.includes(target)) {
-            console.error(`${target.name}中存在自我依赖`)
-            process.abort()
-        }
-        target.prototype.$paramTypes = paramTypes
-    }
-
-    static getFileListInFolder(dirPath: string) {
-        let list = fs.readdirSync(dirPath)
-        let fileList = []
-        list.forEach(a => {
-            let filePath = path.join(dirPath, a)
-            let fileState = fs.statSync(filePath)
-            if (fileState.isDirectory()) {
-                fileList = fileList.concat(Utils.getFileListInFolder(filePath))
-            } else {
-                if ((filePath.endsWith('.ts') || filePath.endsWith('js')) && !filePath.endsWith('.d.ts')) {
-                    fileList.push(filePath)
-                }
-            }
-        })
-        return fileList
-    }
-
-    static getValidator(obj: any) {
-        return obj != null && obj.__proto__ && obj.__proto__.$validator
-    }
-
-    static async validateField(obj: any) {
-        let validator = this.getValidator(obj)
-        if (!validator) {
-            return
-        }
-        let entries = Object.entries(validator)
-        for (let entrie of entries) {
-            let k = entrie[0]
-            let fieldVal = obj[k]
-            if (fieldVal instanceof Array) {
-                for (let a of fieldVal) {
-                    await this.validateField(a)
-                }
-            } else {
-                await this.validateField(fieldVal)
-            }
-            let v = entrie[1]
-            let funcList = v as Function[]
-            for (let func of funcList) {
-                await func(fieldVal)
+let oldLoadFunc = Module.prototype.load
+Module.prototype.load = function (filename: string) {
+    oldLoadFunc.call(this, filename)
+    try {
+        for (let p in this.exports) {
+            let field = this.exports[p]
+            if (field.prototype.$isComponent) {
+                field.prototype.$filename = filename
             }
         }
-    }
+    } catch{ }
 }
 
-@Component
-export class DogBootApplication {
-    app = new Koa()
-    server: Server
-    private readyToAcceptRequest: boolean = false
-    private port: number = 3000
-    private globalExceptionFilter: Function
-    private render: Function
-    private globalActionFilters: Function[] = []
-    private prefix: string
-    private execRootPath: string
-    private container: DIContainer
-    private controllerClasses: Function[] = []
-    private started: boolean = false
+export interface DIContainerOptions {
+    enableHotload?: boolean
+    hotloadDebounceInterval?: number
+    componentInstanceMap?: Map<any, any>
+}
+export class DIContainer {
+    private componentInstanceMapKeyByFilenameAndClassName: Map<string, Map<string, any>> = new Map()
+    private componentInstanceMap: Map<any, any>
+    private watcher: chokidar.FSWatcher
+    private opts: DIContainerOptions
+    private configPathSet: Set<string> = new Set()
 
-    /**
-     * app根目录，dogbooot会自动扫描子目录下的dist/controller/以及dist/startup/
-     * @param appRootPath 
-     */
-    constructor(private readonly appRootPath: string, componentInstanceMap: Map<any, any> = null) {
-        this.container = new DIContainer(appRootPath, componentInstanceMap)
-        let execFileName = process.mainModule.filename
-        if (execFileName.endsWith('.ts')) {
-            this.execRootPath = path.join(appRootPath, 'src')
-        } else {
-            this.execRootPath = path.join(appRootPath, 'dist')
-        }
-        this.container.setComponentInstance(DogBootApplication, this)
+    constructor(opts: DIContainerOptions) {
+        this.refresh(opts)
     }
-    private build() {
-        let publicRootPath = path.join(this.appRootPath, 'public')
-        this.app.use(koaStatic(publicRootPath))
-        this.app.use(koaBody())
-        let controllerRootPath = path.join(this.execRootPath, 'controller')
-        let spiltStr = '/'
-        if (process.platform == 'win32') {
-            spiltStr = '\\'
-        }
 
-        Utils.getFileListInFolder(controllerRootPath).forEach(a => {
-            let controllerFilePathArr = path.relative(controllerRootPath, a).replace(/Controller\.(ts|js)$/i, '').split(spiltStr)
-            this.checkAndHandleControllerFile(a, controllerFilePathArr)
+    refresh(opts: DIContainerOptions) {
+        this.opts = Object.assign({}, opts)
+        if (this.opts.hotloadDebounceInterval == null) {
+            this.opts.hotloadDebounceInterval = 1000
+        }
+        this.componentInstanceMap = this.opts.componentInstanceMap || new Map()
+        if (this.watcher) {
+            this.watcher.close()
+        }
+        if (this.opts.enableHotload == true) {
+            this.watch()
+        }
+    }
+
+    private async watch() {
+        this.watcher = chokidar.watch([Utils.getExecRootPath()], {
+            ignoreInitial: true,
+            ignorePermissionErrors: true
+        })
+
+        let st: NodeJS.Timeout
+        this.watcher.on('all', () => {
+            clearTimeout(st)
+            st = setTimeout(() => {
+                this.reload()
+            }, this.opts.hotloadDebounceInterval)
         })
     }
-    private checkAndHandleControllerFile(filePath: string, controllerFilePathArr: string[]) {
-        let _Module = require(filePath)
-        Object.values(_Module).filter(a => a instanceof Function).forEach((a: Function) => { this.checkAndHandleControllerClass(a, controllerFilePathArr) })
-    }
-    private checkAndHandleControllerClass(_Class: Function, controllerFilePathArr: string[]) {
-        let _prototype = _Class.prototype
-        let controllerPath = _prototype.$path
-        if (!controllerPath) {
-            return
-        }
-        let prefix = ''
-        let areaPrefixArr = controllerFilePathArr.slice(0, controllerFilePathArr.length - 1)
-        if (areaPrefixArr.length) {
-            prefix += '/' + areaPrefixArr.join('/')
-        }
-        prefix += controllerPath
-        let router = new Router({
-            prefix
-        })
-        Object.getOwnPropertyNames(_prototype).forEach(a => {
-            this.checkAndHandleActionName(a, _Class, controllerFilePathArr, router)
-        })
-        if (this.prefix) {
-            router.prefix(this.prefix)
-        }
-        this.app.use(router.routes())
 
-        this.controllerClasses.push(_Class)
-    }
-    private checkAndHandleActionName(actionName: string, _Class: Function, controllerFilePathArr: string[], router: any) {
-        let _prototype = _Class.prototype
-        let action = _prototype[actionName]
-        if (!action.$method) {
-            return
-        }
-        router[action.$method](action.$path, async (ctx: any) => {
-            if (!this.readyToAcceptRequest) {
-                return
-            }
-            try {
-                await this.handleContext(actionName, _Class, controllerFilePathArr, ctx)
-            } catch (err) {
-                let exceptionFilter = _prototype[actionName].$exceptionFilter || _prototype.$exceptionFilter || this.globalExceptionFilter
-                if (!exceptionFilter) {
-                    throw err
-                }
-                let exceptionFilterInstance = await this.container.getComponentInstanceFromFactory(exceptionFilter) as any
-                if (!exceptionFilter.prototype.$exceptionHandlerMap) {
-                    throw err
-                }
-                let handlerName = exceptionFilter.prototype.$exceptionHandlerMap.get(err.__proto__.constructor)
-                if (!handlerName) {
-                    handlerName = exceptionFilter.prototype.$exceptionHandlerMap.get(Error)
-                }
-                if (!handlerName) {
-                    throw err
-                }
-                await exceptionFilterInstance[handlerName](err, ctx)
+    private reload() {
+        Utils.getFileListInFolder(Utils.getExecRootPath()).forEach(a => {
+            if (require.cache[a] != null) {
+                delete require.cache[a]
             }
         })
-    }
-    private async handleContext(actionName: string, _Class: Function, controllerFilePathArr: string[], ctx: any) {
-        let _prototype = _Class.prototype
-        let instance = await this.container.getComponentInstanceFromFactory(_prototype.constructor)
-        let $params = instance[actionName].$params || []//使用@Bind...注册的参数，没有使用@Bind...装饰的参数将保持为null
-        let $paramTypes: Function[] = instance[actionName].$paramTypes || []//全部的参数类型
-        let params = $params.map((b: Function, idx: number) => {
-            let oldValArr = b(ctx)
-            let oldVal = oldValArr[0]
-            let typeSpecified = oldValArr[1]
-            let toType = $paramTypes[idx]
-            if (typeSpecified && toType) {
-                return DogUtils.getTypeSpecifiedValue(toType, oldVal)
-            } else {
-                return oldVal
-            }
+        this.configPathSet.forEach(a => {
+            delete require.cache[a]
         })
-        for (let b of params) {
-            await Utils.validateField(b)
-        }
-        let actionContext = new ActionFilterContext(ctx, params, $paramTypes, _Class, actionName)
-
-        let actionFiltersOnController = _prototype.$actionFilters || []
-        let actionFiltersOnAction = instance[actionName].$actionFilters || []
-        let actionFilters = this.globalActionFilters.concat(actionFiltersOnController, actionFiltersOnAction)
-        let actionFilterAndInstances: [Function, any][] = []
-        for (let actionFilter of actionFilters) {
-            let handlerName = actionFilter.prototype.$actionHandlerMap.get(DoBefore)
-            if (!handlerName) {
-                continue
-            }
-            let filterInstance = await this.container.getComponentInstanceFromFactory(actionFilter) as any
-            actionFilterAndInstances.push([actionFilter, filterInstance])
-            await filterInstance[handlerName](actionContext)
-            if (ctx.status != 404) {
-                break
-            }
-        }
-
-        if (ctx.status == 404) {
-            let body = await instance[actionName](...params)
-
-            if (ctx.status == 404) {
-                if (body instanceof ViewResult) {
-                    if (this.render) {
-                        ctx.body = await this.render(controllerFilePathArr, actionName, body.data)
-                    } else {
-                        throw new Error('没有找到任何视图渲染器')
-                    }
-                } else {
-                    ctx.body = body
-                }
-            }
-        }
-
-        for (let [actionFilter, filterInstance] of actionFilterAndInstances.reverse()) {
-            let handlerName = actionFilter.prototype.$actionHandlerMap.get(DoAfter)
-            if (!handlerName) {
-                continue
-            }
-            await filterInstance[handlerName](actionContext)
-        }
-    }
-    private async startUp() {
-        let startUpRootPath = path.join(this.execRootPath, 'startup')
-        if (!fs.existsSync(startUpRootPath)) {
-            return
-        }
-        let startUpFileList = Utils.getFileListInFolder(startUpRootPath)
-        let startUpClassList = []
-        for (let filePath of startUpFileList) {
-            let _Module = require(filePath)
-            Object.values(_Module).forEach(a => {
-                if (a instanceof Function) {
-                    startUpClassList.push(a)
-                }
-            })
-        }
-        startUpClassList.sort((a, b) => b.prototype.$order - a.prototype.$order)
-        for (let startUp of startUpClassList) {
-            await this.container.getComponentInstanceFromFactory(startUp as Function)
-        }
-    }
-    private async initComponents() {
-        for (let componentClass of this.controllerClasses) {
-            await this.container.getComponentInstanceFromFactory(componentClass as Function)
-        }
-    }
-
-    /**
-     * 设置整个app的路由前缀
-     * @param prefix 前缀，比如：/api
-     */
-    setPrefix(prefix: string) {
-        this.prefix = prefix
-        return this
-    }
-
-    /**
-     * 设置app的端口
-     * @param port 端口，默认为3000
-     */
-    setPort(port: number) {
-        this.port = port
-        return this
-    }
-
-    /**
-     * 设置html渲染器
-     * @param render 一个渲染器函数，此函数接收以下参数
-     * @param controllerFilePathArr 控制器相对于控制器根目录的路径拆分为数组，路径最后的Controller.js或者Controller.ts已经去除
-     * @param actionName Action名称，取方法名称，而不是映射的路由地址，比如：GetMapping('/getname') getName(){} -> getName
-     * @param data 渲染页面的数据
-     * 渲染器需要返回一个字符串，这个字符串就是最终渲染出来的html
-     */
-    setRender(render: (controllerFilePathArr: string[], actionName: string, data: any) => string) {
-        this.render = render
-        return this
-    }
-
-    /**
-     * 设置全局异常过滤器
-     * @param exceptionFilter 
-     */
-    useExceptionFilter(exceptionFilter: Function) {
-        this.globalExceptionFilter = exceptionFilter
-        return this
-    }
-
-    /**
-     * 设置全局Action过滤器
-     * @param actionFilter 
-     */
-    useActionFilter(actionFilter: Function) {
-        this.globalActionFilters.push(actionFilter)
-        return this
-    }
-
-    /**
-     * 启动程序，此方法中，所有组件包括StartUp都会初始化，然后才开始接受http请求
-     */
-    run() {
-        if (this.started) {
-            throw new Error('请勿重复启动程序')
-        }
-        this.started = true
-
-        let startTime = Date.now()
-        this.build()
-        this.server = this.app.listen(this.port)
-        this.startUp().then(async () => {
-            await this.initComponents()
-            this.readyToAcceptRequest = true
-            let endTime = Date.now()
-            console.log(`Your application has started at ${this.port} in ${endTime - startTime}ms`)
-        })
-        return this
-    }
-
-    async runAsync() {
-        if (this.started) {
-            throw new Error('请勿重复启动程序')
-        }
-        this.started = true
-
-        let startTime = Date.now()
-        this.build()
-        this.server = this.app.listen(this.port)
-        await this.startUp()
-        await this.initComponents()
-        this.readyToAcceptRequest = true
-        let endTime = Date.now()
-        console.log(`Your application has started at ${this.port} in ${endTime - startTime}ms`)
-        return this
+        this.configPathSet.clear()
+        this.componentInstanceMap.clear()
+        require(process.mainModule.filename)
     }
 
     /**
@@ -350,62 +88,72 @@ export class DogBootApplication {
      * @param instance 组件实例，可以是任意值
      */
     setComponentInstance(key: any, instance: any) {
-        this.container.setComponentInstance(key, instance)
+        this.componentInstanceMap.set(key, instance)
     }
 
     /**
      * 根据key获取组件实例，实际上是从一个Map<any, any>获取数据，所以key、value可以自由设置以及获取
-     * DogBootApplication也是一个组件，并且加入到容器，所以你可以在你的组件中使用，比如：private readonly app: DogBootApplication
-     * @param key 
+     * @param key 组件key，可以是任意值
      */
-    getComponentInstance<T>(key: any): T {
-        return this.container.getComponentInstance(key)
-    }
-}
-
-class DIContainer {
-    constructor(private readonly appRootPath: string, private readonly componentInstanceMap: Map<any, any> = null) {
-        this.componentInstanceMap = this.componentInstanceMap || new Map()
-    }
-
-    setComponentInstance(key: any, instance: any) {
-        this.componentInstanceMap.set(key, instance)
-    }
-
     getComponentInstance<T>(key: any): T {
         return this.componentInstanceMap.get(key)
     }
 
+    /**
+     * 从工厂获取指定类型的组件实例，如果此组件类型没有一个可用实例，会创建一个实例然后返回给调用者
+     * 这是一个异步方法，不能在构造器中起作用，所以请仅仅在程序启动的时候使用此方法
+     * 程序运行中获取实例应该使用同步方法getComponentInstance
+     * @param target 组件类型
+     */
     async getComponentInstanceFromFactory(target: Function): Promise<any> {
         if (!target.prototype.$isComponent) {
             throw new Error(`${target.name}没有被注册为可自动解析的组件，请至少添加@Component、@StartUp、@Controller、@Config等装饰器中的一种`)
         }
         let instance = this.componentInstanceMap.get(target)
         if (instance) {
-            return instance
+            return await instance
         }
 
-        return await this.createComponentInstance(target)
+        let instancePromise = this.createComponentInstance(target)
+        this.componentInstanceMap.set(target, instancePromise)
+
+        return instancePromise
     }
 
-    async createComponentInstance(target: Function): Promise<any> {
+    private async createComponentInstance(target: Function): Promise<any> {
+        let map = this.componentInstanceMapKeyByFilenameAndClassName.get(target.prototype.$filename) || new Map()
+        let lastInstance = map.get(target.name)
+
         let instance = null
         if (target.prototype.$isConfig) {
             instance = this.getConfigValue(target)
-            this.componentInstanceMap.set(target, instance)
         } else {
             instance = Reflect.construct(target, await this.getParamInstances(target))
-            this.componentInstanceMap.set(target, instance)
             await this.resolveAutowiredDependences(instance)
+
+            if (lastInstance) {
+                if (target.prototype.$aliveFields) {
+                    target.prototype.$aliveFields.forEach((a: string) => {
+                        instance[a] = lastInstance[a]
+                    })
+                }
+            }
+
             let initMethod = target.prototype.$initMethod
             if (initMethod) {
-                await instance[initMethod]()
+                await instance[initMethod](lastInstance)
             }
         }
+
+        map.set(target.name, instance)
+        this.componentInstanceMapKeyByFilenameAndClassName.set(target.prototype.$filename, map)
+
+        this.componentInstanceMap.set(target, instance)
+
         return instance
     }
 
-    async getParamInstances(target: Function): Promise<any[]> {
+    private async getParamInstances(target: Function): Promise<any[]> {
         let paramTypes = target.prototype.$paramTypes
         let paramInstances = []
         for (let paramType of paramTypes) {
@@ -415,7 +163,7 @@ class DIContainer {
         return paramInstances
     }
 
-    async resolveAutowiredDependences(instance) {
+    private async resolveAutowiredDependences(instance: any) {
         let target = instance.__proto__.constructor
         let autowiredMap = target.prototype.$autowiredMap
         if (autowiredMap) {
@@ -430,19 +178,22 @@ class DIContainer {
         }
     }
 
-    getConfigValue(target: Function) {
-        let oldVal = require(path.join(this.appRootPath, 'config.json'))
+    private getConfigValue(target: Function) {
+        let configName = target.prototype.$configName
+        let configFilePath = Utils.getConfigFilename(configName)
+        this.configPathSet.add(configFilePath)
+        let originalVal = require(configFilePath)
         let sectionArr = target.prototype.$configField.split('.').filter((a: any) => a)
         for (let a of sectionArr) {
-            if (oldVal == null) {
+            if (originalVal == null) {
                 return null
             }
-            oldVal = oldVal[a]
+            originalVal = originalVal[a]
         }
-        if (oldVal == null) {
+        if (originalVal == null) {
             return null
         }
-        return DogUtils.getTypeSpecifiedValue(target, oldVal)
+        return DogUtils.getTypeSpecifiedValue(target, originalVal)
     }
 }
 
@@ -450,33 +201,143 @@ class DIContainer {
  * 包含一些公开的实用工具方法
  */
 export class DogUtils {
-    static getTypeSpecifiedValue<T>(type: Function, oldVal: any): T {
-        if (oldVal == null) {
+    /**
+     * 获取指定类型的对象
+     * @param type 指定的类型
+     * @param originalVal 原始对象
+     */
+    static getTypeSpecifiedValue<T>(type: Function, originalVal: any): T {
+        if (originalVal == null) {
             return null
         }
         if (type == Number || type == String || type == Boolean) {
-            return type(oldVal)
+            return type(originalVal)
         }
         if (type == Date) {
-            return new Date(oldVal) as any
+            return new Date(originalVal) as any
         }
         let newVal = Reflect.construct(type, [])
         type.prototype.$fields && Object.entries(type.prototype.$fields).forEach(([k, v]) => {
             let typeSpecifiedMap: TypeSpecifiedMap = v as TypeSpecifiedMap
             if (typeSpecifiedMap.typeSpecifiedType == TypeSpecifiedType.General) {
-                newVal[k] = this.getTypeSpecifiedValue(typeSpecifiedMap.type, oldVal[typeSpecifiedMap.sourceName])
+                newVal[k] = this.getTypeSpecifiedValue(typeSpecifiedMap.type, originalVal[typeSpecifiedMap.sourceName])
             } else if (typeSpecifiedMap.typeSpecifiedType == TypeSpecifiedType.Array) {
-                newVal[k] = oldVal[typeSpecifiedMap.sourceName].map(a => this.getTypeSpecifiedValue(typeSpecifiedMap.type, a))
+                if (Array.isArray(originalVal[typeSpecifiedMap.sourceName])) {
+                    newVal[k] = originalVal[typeSpecifiedMap.sourceName].map((a: any) => this.getTypeSpecifiedValue(typeSpecifiedMap.type, a))
+                } else {
+                    newVal[k] = null
+                }
             }
         })
         return newVal
     }
 
-    static getTypeSpecifiedValueArray<T>(type: Function, oldVal: any[]): T[] {
-        if (oldVal == null) {
+    /**
+     * 获取指定类型的数组对象
+     * @param type 指定的类型
+     * @param originalVal 原始对象
+     */
+    static getTypeSpecifiedValueArray<T>(type: Function, originalVal: any[]): T[] {
+        if (originalVal == null) {
             return null
         }
-        return oldVal.map(a => this.getTypeSpecifiedValue(type, a))
+        return originalVal.map(a => this.getTypeSpecifiedValue(type, a))
+    }
+}
+
+/**
+ * 仅仅被dogboot使用的内部工具方法
+ */
+class Utils {
+    /**
+     * 标记为组件
+     * @param target 目标类型
+     */
+    static markAsComponent(target: Function) {
+        target.prototype.$isComponent = true
+        let paramTypes: Array<Function> = Reflect.getMetadata('design:paramtypes', target) || []
+        if (paramTypes.includes(target)) {
+            console.error(`${target.name}中存在自我依赖`)
+            process.abort()
+        }
+        target.prototype.$paramTypes = paramTypes
+    }
+
+    /**
+     * 获取指定目录下js或者ts文件列表
+     * @param dirPath 指定的目录
+     */
+    static getFileListInFolder(dirPath: string) {
+        let list = fs.readdirSync(dirPath)
+        let fileList = []
+        list.forEach(a => {
+            let filePath = path.join(dirPath, a)
+            let fileState = fs.statSync(filePath)
+            if (fileState.isDirectory()) {
+                fileList = fileList.concat(this.getFileListInFolder(filePath))
+            } else {
+                if ((filePath.endsWith('.ts') || filePath.endsWith('js')) && !filePath.endsWith('.d.ts')) {
+                    fileList.push(filePath)
+                }
+            }
+        })
+        return fileList
+    }
+
+    private static getValidator(obj: any) {
+        return obj != null && obj.__proto__ && obj.__proto__.$validator
+    }
+
+    /**
+     * 验证模型是否合法，第一个不合法的字段会导致此方法抛出异常IllegalArgumentException
+     * @param model 待验证的模型对象
+     */
+    static validateModel(model: any) {
+        let validator = this.getValidator(model)
+        if (!validator) {
+            return
+        }
+        let entries = Object.entries(validator)
+        for (let entrie of entries) {
+            let k = entrie[0]
+            let fieldVal = model[k]
+            if (fieldVal instanceof Array) {
+                for (let a of fieldVal) {
+                    this.validateModel(a)
+                }
+            } else {
+                this.validateModel(fieldVal)
+            }
+            let v = entrie[1]
+            let funcList = v as Function[]
+            for (let func of funcList) {
+                func(fieldVal)
+            }
+        }
+    }
+
+    static sleep(milliseconds: number) {
+        return new Promise(resolve => {
+            setTimeout(() => {
+                resolve()
+            }, milliseconds)
+        })
+    }
+
+    static getAppRootPath() {
+        return path.resolve(process.mainModule.filename, '..', '..')
+    }
+
+    static getExecRootPath() {
+        if (process.mainModule.filename.endsWith('.ts')) {
+            return path.join(this.getAppRootPath(), 'src')
+        } else {
+            return path.join(this.getAppRootPath(), 'bin')
+        }
+    }
+
+    static getConfigFilename(configName: string) {
+        return path.join(this.getAppRootPath(), configName)
     }
 }
 
@@ -493,25 +354,64 @@ export function Component(target: Function) {
  * 指定此类为预启动组件，将在程序启动时预先启动。
  * 事实上，所有的组件只要被使用到都会在程序启动时预先启动，使用StartUp标记那些没有被其他组件使用的组件，确保此组件也能启动
  * StartUp是一种特殊的Component
- * @param order 启动顺序，值越大越优先启动
+ * @param order 优先级，值越大越优先启动
  */
 export function StartUp(order: number = 0) {
     return function (target: Function) {
+        target.prototype.$isStartUp = true
         target.prototype.$order = order
         Utils.markAsComponent(target)
     }
 }
 
 /**
- * 指定此类为控制器
- * Controller是一种特殊的Component
- * @param path 映射到的路由，默认取类名前一部分，比如HomeController默认映射到/Home，Home也映射到/Home
+ * 标记此类为全局请求过滤器，此类将会被dogboot自动扫描到并且应用到所有的控制器以及其Action
+ * 请求过滤器作用方式遵循洋葱模型，执行顺序为：
+ *     1、低优先级ActionFilter.DoBefore
+ *     2、高优先级ActionFilter.DoBefore
+ *     3、Controller.Action
+ *     4、高优先级ActionFilter.DoAfter
+ *     5、低优先级ActionFilter.DoAfter
+ * 任何一步导致ctx.status != 404都将阻止后续步骤的执行
+ * ActionFilter是一种特殊的Component
+ * @param order 优先级，值越大优先级越高
  */
-export function Controller(path: string = null) {
+export function ActionFilter(order: number = 0) {
     return function (target: Function) {
-        target.prototype.$path = path || '/' + target.name.replace(/Controller$/i, '')
+        target.prototype.$isActionFilter = true
+        target.prototype.$order = order
         Utils.markAsComponent(target)
     }
+}
+
+/**
+ * 标记此类为自由请求过滤器，除非被显式使用，否则不会生效，可以作用于Controller以及Action
+ * 该过滤器优先级高于全局，一个Controller或者Action同时使用多个自由过滤器时，靠前的优先级更高
+ * 配合UseActionFilter来使用
+ */
+export function FreeActionFilter(target: Function) {
+    target.prototype.$isFreeActionFilter = true
+    Utils.markAsComponent(target)
+}
+
+/**
+ * 标记此类为全局异常过滤器，此类将会被dogboot自动扫描到并且应用到所有的控制器以及其Action
+ * 注意，一个app只能有一个全局异常过滤器，请删除多余的全局异常过滤器，以免程序运行结果不符合预期
+ * ExceptionFilter是一种特殊的Component
+ */
+export function ExceptionFilter(target: Function) {
+    target.prototype.$isExceptionFilter = true
+    Utils.markAsComponent(target)
+}
+
+/**
+ * 标记此类为自由异常过滤器，除非被显式使用，否则不会生效，可以作用于Controller以及Action
+ * 该过滤器优先级高于全局，一个Controller或者Action同时使用多个自由过滤器时，只会使用第一个
+ * 配合UseExceptionFilter来使用
+ */
+export function FreeExceptionFilter(target: Function) {
+    target.prototype.$isFreeExceptionFilter = true
+    Utils.markAsComponent(target)
 }
 
 /**
@@ -519,10 +419,11 @@ export function Controller(path: string = null) {
  * Config是一种特殊的Component
  * @param field 需要映射的节
  */
-export function Config(field: string = null) {
+export function Config(opts: { name?: string, field?: string }) {
     return function (target: Function) {
         target.prototype.$isConfig = true
-        target.prototype.$configField = field
+        target.prototype.$configField = opts.field
+        target.prototype.$configName = opts.name || 'config.json'
         Utils.markAsComponent(target)
     }
 }
@@ -540,136 +441,6 @@ export function Autowired(type: Function) {
         target.$autowiredMap = target.$autowiredMap || new Map()
         target.$autowiredMap.set(name, type)
     }
-}
-
-/**
- * 映射此方法为Action
- * @param type method类型，默认为get
- * @param path 映射到的路由，默认为action名称
- */
-export function Mapping(type: string = 'get', path: string = null) {
-    return function (target: any, name: string) {
-        let action = target[name]
-        action.$method = type.toLowerCase()
-        action.$path = path || '/' + action.name
-        action.$paramTypes = Reflect.getMetadata('design:paramtypes', target, name)
-    }
-}
-
-/**
- * 映射此方法为Action，允许所有类型的method请求
- * @param path 映射到的路由，默认为action名称
- */
-export function AllMapping(path: string = null) {
-    return Mapping('all', path)
-}
-
-/**
- * 映射此方法为Action，只允许get请求
- * @param path 映射到的路由，默认为action名称
- */
-export function GetMapping(path: string = null) {
-    return Mapping('get', path)
-}
-
-/**
- * 映射此方法为Action，只允许post请求
- * @param path 映射到的路由，默认为action名称
- */
-export function PostMapping(path: string = null) {
-    return Mapping('post', path)
-}
-
-/**
- * 映射此方法为Action，只允许put请求
- * @param path 映射到的路由，默认为action名称
- */
-export function PutMapping(path: string = null) {
-    return Mapping('put', path)
-}
-
-/**
- * 映射此方法为Action，只允许patch请求
- * @param path 映射到的路由，默认为action名称
- */
-export function PatchMapping(path: string = null) {
-    return Mapping('patch', path)
-}
-
-/**
- * 映射此方法为Action，只允许delete请求
- * @param path 映射到的路由，默认为action名称
- */
-export function DeleteMapping(path: string = null) {
-    return Mapping('delete', path)
-}
-
-/**
- * 映射此方法为Action，只允许head请求
- * @param path 映射到的路由，默认为action名称
- */
-export function HeadMapping(path: string = null) {
-    return Mapping('head', path)
-}
-
-/**
- * 绑定koa原生的context
- * 只能在Controller中使用
- */
-export function BindContext(target: any, name: string, index: number) {
-    target[name].$params = target[name].$params || []
-    target[name].$params[index] = (ctx: any) => [ctx, false]
-}
-
-/**
- * 绑定koa原生的request
- * 只能在Controller中使用
- */
-export function BindRequest(target: any, name: string, index: number) {
-    target[name].$params = target[name].$params || []
-    target[name].$params[index] = (ctx: any) => [ctx.request, false]
-}
-
-/**
- * 绑定koa原生的response
- * 只能在Controller中使用
- */
-export function BindResponse(target: any, name: string, index: number) {
-    target[name].$params = target[name].$params || []
-    target[name].$params[index] = (ctx: any) => [ctx.response, false]
-}
-
-/**
- * 绑定url中的query参数
- * 只能在Controller中使用
- * @param key 参数名称
- */
-export function BindQuery(key: string) {
-    return function (target: any, name: string, index: number) {
-        target[name].$params = target[name].$params || []
-        target[name].$params[index] = (ctx: any) => [ctx.query[key], true]
-    }
-}
-
-/**
- * 绑定url中的path参数
- * 只能在Controller中使用
- * @param key 参数名称
- */
-export function BindPath(key: string) {
-    return function (target: any, name: string, index: number) {
-        target[name].$params = target[name].$params || []
-        target[name].$params[index] = (ctx: any) => [(ctx as any).params[key], true]
-    }
-}
-
-/**
- * 只能在Controller中使用
- * 绑定请求体参数
- */
-export function BindBody(target: any, name: string, index: number) {
-    target[name].$params = target[name].$params || []
-    target[name].$params[index] = (ctx: any) => [ctx.request.body, true]
 }
 
 /**
@@ -960,32 +731,10 @@ export class IllegalArgumentException extends Error {
 }
 
 /**
- * 表示一个html输出
+ * 在组件中标记一个方法，使其在组件初始化时执行，支持异步方法
  */
-export class ViewResult {
-    data: any
-
-    constructor(data: any) {
-        this.data = data
-    }
-}
-
-/**
- * ActionFilter中DoBefore以及DoAfter方法接受到的参数
- */
-export class ActionFilterContext {
-    constructor(ctx: any, params: any[], paramTypes: Function[], controller: Function, action: string) {
-        this.ctx = ctx
-        this.params = params
-        this.paramTypes = paramTypes
-        this.controller = controller
-        this.action = action
-    }
-    public readonly ctx: any
-    params: any[]
-    public readonly paramTypes: Function[]
-    public readonly controller: Function
-    public readonly action: string
+export function Init(target: any, name: string) {
+    target.$initMethod = name
 }
 
 /**
@@ -995,6 +744,10 @@ export class ActionFilterContext {
  */
 export function UseActionFilter(actionFilter: Function) {
     return function (target: any, name: string = null) {
+        if (!actionFilter.prototype.$isFreeActionFilter) {
+            console.warn(`UseActionFilter只能使用FreeActionFilter，此actionFilter(${actionFilter.name})将不会生效`)
+            return
+        }
         if (name == null) {
             target.prototype.$actionFilters = target.prototype.$actionFilters || []
             target.prototype.$actionFilters.unshift(actionFilter)
@@ -1020,6 +773,17 @@ export function DoBefore(target: any, name: string) {
 export function DoAfter(target: any, name: string) {
     target.$actionHandlerMap = target.$actionHandlerMap || new Map()
     target.$actionHandlerMap.set(DoAfter, name)
+}
+
+/**
+ * ActionFilter中DoBefore以及DoAfter方法接受到的参数
+ */
+export class ActionFilterContext {
+    constructor(readonly ctx: Koa.Context,
+        readonly params: any[],
+        readonly paramTypes: Function[],
+        readonly controller: Function, readonly action: string) {
+    }
 }
 
 /**
@@ -1050,8 +814,468 @@ export function ExceptionHandler(type: Function) {
 }
 
 /**
- * 在组件中标记一个方法，使其在组件初始化时执行，支持异步方法
+ * 标记此字段在reload的时候，保持在内存中并且继承到新的实例
  */
-export function Init(target: any, name: string) {
-    target.$initMethod = name
+export function KeepAlive(target: any, name: string) {
+    target.$aliveFields = target.$aliveFields || []
+    target.$aliveFields.push(name)
+}
+
+export interface DogWebOptions {
+    prefix?: string
+    staticRootPathName?: string
+    controllerRootPathName?: string
+    startupRootPathName?: string
+    filterRootPathName?: string
+    enableHotload?: boolean
+    /**
+     * 热更新监听文件变化的debounce，单位：毫秒，默认1000
+     */
+    hotloadDebounceInterval?: number
+    enableApidoc?: boolean
+    apidocPrefix?: string
+    componentInstanceMap?: Map<any, any>
+
+    /**
+    * 设置html渲染器
+    * @param render 一个渲染器函数，此函数接收以下参数
+    * @param controllerFilePathArr 控制器相对于控制器根目录的路径拆分为数组，路径最后的Controller.js或者Controller.ts已经去除
+    * @param actionName Action名称，取方法名称，而不是映射的路由地址，比如：GetMapping('/getname') getName(){} -> getName
+    * @param data 渲染页面的数据
+    * 渲染器需要返回一个字符串，这个字符串就是最终渲染出来的html
+    */
+    render?: (controllerFilePathArr: string[], actionName: string, data: any) => string
+}
+
+let lastApp: DogWebApplication
+
+@Component
+export class DogWebApplication {
+    app = new Koa()
+    server: Server
+
+    private container: DIContainer
+    private readyToAcceptRequest: boolean
+    private globalExceptionFilter: Function
+    private render: (controllerFilePathArr: string[], actionName: string, data: any) => string
+    private globalActionFilters: Function[]
+    private requestHandler: Function
+    private controllerClasses: Function[]
+    private prefix: string
+    private staticRootPathName: string
+    private controllerRootPathName: string
+    private startupRootPathName: string
+    private filterRootPathName: string
+    private enableApidoc: boolean
+    private apidocPrefix: string
+
+    static create(port: number = 3000, _opts?: DogWebOptions) {
+        let opts = _opts || {}
+
+        let app: DogWebApplication
+        if (lastApp) {
+            app = lastApp
+            app.init(opts)
+        } else {
+            app = new DogWebApplication(port, opts)
+            lastApp = app
+        }
+        return app
+    }
+
+    private constructor(private readonly port: number = 3000, opts: DogWebOptions) {
+        this.init(opts)
+    }
+    private init(opts: DogWebOptions) {
+        this.readyToAcceptRequest = false
+        this.globalExceptionFilter = null
+        this.globalActionFilters = []
+        this.render = opts.render
+        this.requestHandler = null
+        this.controllerClasses = []
+        this.prefix = opts.prefix
+        this.staticRootPathName = opts.staticRootPathName || 'public'
+        this.controllerRootPathName = opts.controllerRootPathName || 'controller'
+        this.startupRootPathName = opts.startupRootPathName || 'startup'
+        this.filterRootPathName = opts.filterRootPathName || 'filter'
+        this.enableApidoc = opts.enableApidoc != null ? opts.enableApidoc : false
+        this.apidocPrefix = opts.apidocPrefix || 'apidoc'
+
+        let diContainerOptions: DIContainerOptions = {
+            enableHotload: opts.enableHotload,
+            hotloadDebounceInterval: opts.hotloadDebounceInterval
+        }
+        if (!this.container) {
+            this.container = new DIContainer(diContainerOptions)
+        } else {
+            this.container.refresh(diContainerOptions)
+        }
+
+        this.container.setComponentInstance(DogWebApplication, this)
+    }
+    private build() {
+        let publicRootPath = path.join(Utils.getAppRootPath(), this.staticRootPathName)
+        this.app.use(koaStatic(publicRootPath))
+        this.app.use(koaBody())
+
+        let controllerRootPath = path.join(Utils.getExecRootPath(), this.controllerRootPathName)
+        let spiltStr = '/'
+        if (process.platform == 'win32') {
+            spiltStr = '\\'
+        }
+        Utils.getFileListInFolder(controllerRootPath).forEach(a => {
+            let controllerFilePathArr = path.relative(controllerRootPath, a).replace(/Controller\.(ts|js)$/i, '').split(spiltStr)
+            this.checkAndHandleControllerFile(a, controllerFilePathArr)
+        })
+    }
+    private checkAndHandleControllerFile(filePath: string, controllerFilePathArr: string[]) {
+        let _Module = require(filePath)
+        Object.values(_Module).filter(a => a instanceof Function && a.prototype.$isController).forEach((a: Function) => { this.checkAndHandleControllerClass(a, controllerFilePathArr) })
+    }
+    private checkAndHandleControllerClass(_Class: Function, controllerFilePathArr: string[]) {
+        let _prototype = _Class.prototype
+        let controllerPath = _prototype.$path
+        let prefix = ''
+        let areaPrefixArr = controllerFilePathArr.slice(0, controllerFilePathArr.length - 1)
+        if (areaPrefixArr.length) {
+            prefix += '/' + areaPrefixArr.join('/')
+        }
+        prefix += controllerPath
+        let router = new Router({
+            prefix
+        })
+        Object.getOwnPropertyNames(_prototype).forEach(a => {
+            this.checkAndHandleActionName(a, _Class, controllerFilePathArr, router)
+        })
+        if (this.prefix) {
+            router.prefix(this.prefix)
+        }
+        this.app.use(router.routes())
+
+        this.controllerClasses.push(_Class)
+    }
+    private checkAndHandleActionName(actionName: string, _Class: Function, controllerFilePathArr: string[], router: any) {
+        let _prototype = _Class.prototype
+        let action = _prototype[actionName]
+        if (!action.$method) {
+            return
+        }
+        router[action.$method](action.$path, async (ctx: Koa.Context) => {
+            while (!this.readyToAcceptRequest) {
+                await Utils.sleep(200)
+            }
+            try {
+                await this.handleContext(actionName, _Class, controllerFilePathArr, ctx)
+            } catch (err) {
+                let exceptionFilter = _prototype[actionName].$exceptionFilter || _prototype.$exceptionFilter || this.globalExceptionFilter
+                if (!exceptionFilter) {
+                    throw err
+                }
+                let exceptionFilterInstance = await this.container.getComponentInstanceFromFactory(exceptionFilter) as any
+                if (!exceptionFilter.prototype.$exceptionHandlerMap) {
+                    throw err
+                }
+                let handlerName = exceptionFilter.prototype.$exceptionHandlerMap.get(err.__proto__.constructor)
+                if (!handlerName) {
+                    handlerName = exceptionFilter.prototype.$exceptionHandlerMap.get(Error)
+                }
+                if (!handlerName) {
+                    throw err
+                }
+                await exceptionFilterInstance[handlerName](err, ctx)
+            }
+        })
+    }
+    private async handleContext(actionName: string, _Class: Function, controllerFilePathArr: string[], ctx: Koa.Context) {
+        let _prototype = _Class.prototype
+        let instance = await this.container.getComponentInstanceFromFactory(_prototype.constructor)
+        let $params = instance[actionName].$params || []//使用@Bind...注册的参数，没有使用@Bind...装饰的参数将保持为null
+        let $paramTypes: Function[] = instance[actionName].$paramTypes || []//全部的参数类型
+        let params = $params.map((b: Function, idx: number) => {
+            let originalValArr = b(ctx)
+            let originalVal = originalValArr[0]
+            let typeSpecified = originalValArr[1]
+            let toType = $paramTypes[idx]
+            if (typeSpecified && toType) {
+                return DogUtils.getTypeSpecifiedValue(toType, originalVal)
+            } else {
+                return originalVal
+            }
+        })
+        for (let b of params) {
+            Utils.validateModel(b)
+        }
+        let actionFilterContext = new ActionFilterContext(ctx, params, $paramTypes, _Class, actionName)
+
+        let actionFiltersOnController = _prototype.$actionFilters || []
+        let actionFiltersOnAction = instance[actionName].$actionFilters || []
+        let actionFilters = this.globalActionFilters.concat(actionFiltersOnController, actionFiltersOnAction)
+        let actionFilterAndInstances: [Function, any][] = []
+        for (let actionFilter of actionFilters) {
+            let handlerName = actionFilter.prototype.$actionHandlerMap.get(DoBefore)
+            if (!handlerName) {
+                continue
+            }
+            let filterInstance = await this.container.getComponentInstanceFromFactory(actionFilter) as any
+            actionFilterAndInstances.push([actionFilter, filterInstance])
+            await filterInstance[handlerName](actionFilterContext)
+            if (ctx.status != 404) {
+                break
+            }
+        }
+
+        if (ctx.status == 404) {
+            let body = await instance[actionName](...params)
+
+            if (ctx.status == 404) {
+                if (body instanceof ViewResult) {
+                    if (this.render) {
+                        ctx.body = await this.render(controllerFilePathArr, actionName, body.data)
+                    } else {
+                        throw new Error('没有找到任何视图渲染器')
+                    }
+                } else {
+                    ctx.body = body
+                }
+            }
+        }
+
+        for (let [actionFilter, filterInstance] of actionFilterAndInstances.reverse()) {
+            let handlerName = actionFilter.prototype.$actionHandlerMap.get(DoAfter)
+            if (!handlerName) {
+                continue
+            }
+            await filterInstance[handlerName](actionFilterContext)
+        }
+    }
+    private async startUp() {
+        let startupRootPath = path.join(Utils.getExecRootPath(), this.startupRootPathName)
+        if (!fs.existsSync(startupRootPath)) {
+            return
+        }
+        let startUpFileList = Utils.getFileListInFolder(startupRootPath)
+        let startUpClassList = []
+        for (let filePath of startUpFileList) {
+            let _Module = require(filePath)
+            Object.values(_Module).forEach(a => {
+                if (a instanceof Function) {
+                    startUpClassList.push(a)
+                }
+            })
+        }
+        startUpClassList = startUpClassList.filter(a => a.prototype.$isStartUp).sort((a, b) => b.prototype.$order - a.prototype.$order)
+        for (let startUp of startUpClassList) {
+            await this.container.getComponentInstanceFromFactory(startUp as Function)
+        }
+    }
+
+    private async initComponents() {
+        for (let componentClass of this.controllerClasses) {
+            await this.container.getComponentInstanceFromFactory(componentClass as Function)
+        }
+    }
+
+    private async initFilters() {
+        let filterRootPath = path.join(Utils.getExecRootPath(), this.filterRootPathName)
+        if (!fs.existsSync(filterRootPath)) {
+            return
+        }
+        let filterFileList = Utils.getFileListInFolder(filterRootPath)
+        let filterClassList = []
+        for (let filePath of filterFileList) {
+            let _Module = require(filePath)
+            Object.values(_Module).forEach(a => {
+                if (a instanceof Function) {
+                    filterClassList.push(a)
+                }
+            })
+        }
+        this.globalActionFilters = filterClassList.filter(a => a.prototype.$isActionFilter).sort((a, b) => b.prototype.$order - a.prototype.$order)
+        this.globalExceptionFilter = filterClassList.find(a => a.prototype.$isExceptionFilter)
+        for (let filter of this.globalActionFilters) {
+            await this.container.getComponentInstanceFromFactory(filter as Function)
+        }
+        if (this.globalExceptionFilter) {
+            await this.container.getComponentInstanceFromFactory(this.globalExceptionFilter as Function)
+        }
+    }
+
+    /**
+     * 异步启动程序，程序完全启动后才会返回
+     */
+    async runAsync() {
+        let startTime = Date.now()
+        this.app.middleware = []
+        this.build()
+        this.requestHandler = this.app.callback()
+
+        let lastServer = this.server
+        if (!lastServer) {
+            this.server = http.createServer((req, res) => {
+                this.requestHandler(req, res)
+            }).listen(this.port)
+        }
+
+        await this.startUp()
+        await this.initComponents()
+        await this.initFilters()
+        this.readyToAcceptRequest = true
+        let endTime = Date.now()
+        console.log(`Your application has ${lastServer ? 'reloaded' : 'started'} at ${this.port} in ${endTime - startTime}ms`)
+        return this
+    }
+}
+
+/**
+ * 指定此类为控制器
+ * Controller是一种特殊的Component
+ * @param path 映射到的路由，默认取类名前一部分，比如HomeController默认映射到/Home，Home也映射到/Home
+ */
+export function Controller(path: string = null) {
+    return function (target: Function) {
+        target.prototype.$path = path || '/' + target.name.replace(/Controller$/i, '')
+        target.prototype.$isController = true
+        Utils.markAsComponent(target)
+    }
+}
+
+/**
+ * 映射此方法为Action
+ * @param type method类型，默认为get
+ * @param path 映射到的路由，默认为action名称
+ */
+export function Mapping(type: string = 'get', path: string = null) {
+    return function (target: any, name: string) {
+        let action = target[name]
+        action.$method = type.toLowerCase()
+        action.$path = path || '/' + action.name
+        action.$paramTypes = Reflect.getMetadata('design:paramtypes', target, name)
+    }
+}
+
+/**
+ * 映射此方法为Action，允许所有类型的method请求
+ * @param path 映射到的路由，默认为action名称
+ */
+export function AllMapping(path: string = null) {
+    return Mapping('all', path)
+}
+
+/**
+ * 映射此方法为Action，只允许get请求
+ * @param path 映射到的路由，默认为action名称
+ */
+export function GetMapping(path: string = null) {
+    return Mapping('get', path)
+}
+
+/**
+ * 映射此方法为Action，只允许post请求
+ * @param path 映射到的路由，默认为action名称
+ */
+export function PostMapping(path: string = null) {
+    return Mapping('post', path)
+}
+
+/**
+ * 映射此方法为Action，只允许put请求
+ * @param path 映射到的路由，默认为action名称
+ */
+export function PutMapping(path: string = null) {
+    return Mapping('put', path)
+}
+
+/**
+ * 映射此方法为Action，只允许patch请求
+ * @param path 映射到的路由，默认为action名称
+ */
+export function PatchMapping(path: string = null) {
+    return Mapping('patch', path)
+}
+
+/**
+ * 映射此方法为Action，只允许delete请求
+ * @param path 映射到的路由，默认为action名称
+ */
+export function DeleteMapping(path: string = null) {
+    return Mapping('delete', path)
+}
+
+/**
+ * 映射此方法为Action，只允许head请求
+ * @param path 映射到的路由，默认为action名称
+ */
+export function HeadMapping(path: string = null) {
+    return Mapping('head', path)
+}
+
+/**
+ * 绑定koa原生的context
+ * 只能在Controller中使用
+ */
+export function BindContext(target: any, name: string, index: number) {
+    target[name].$params = target[name].$params || []
+    target[name].$params[index] = (ctx: any) => [ctx, false]
+}
+
+/**
+ * 绑定koa原生的request
+ * 只能在Controller中使用
+ */
+export function BindRequest(target: any, name: string, index: number) {
+    target[name].$params = target[name].$params || []
+    target[name].$params[index] = (ctx: any) => [ctx.request, false]
+}
+
+/**
+ * 绑定koa原生的response
+ * 只能在Controller中使用
+ */
+export function BindResponse(target: any, name: string, index: number) {
+    target[name].$params = target[name].$params || []
+    target[name].$params[index] = (ctx: any) => [ctx.response, false]
+}
+
+/**
+ * 绑定url中的query参数
+ * 只能在Controller中使用
+ * @param key 参数名称
+ */
+export function BindQuery(key: string) {
+    return function (target: any, name: string, index: number) {
+        target[name].$params = target[name].$params || []
+        target[name].$params[index] = (ctx: any) => [ctx.query[key], true]
+    }
+}
+
+/**
+ * 绑定url中的path参数
+ * 只能在Controller中使用
+ * @param key 参数名称
+ */
+export function BindPath(key: string) {
+    return function (target: any, name: string, index: number) {
+        target[name].$params = target[name].$params || []
+        target[name].$params[index] = (ctx: any) => [(ctx as any).params[key], true]
+    }
+}
+
+/**
+ * 只能在Controller中使用
+ * 绑定请求体参数
+ */
+export function BindBody(target: any, name: string, index: number) {
+    target[name].$params = target[name].$params || []
+    target[name].$params[index] = (ctx: any) => [ctx.request.body, true]
+}
+
+/**
+ * 表示一个html输出
+ */
+export class ViewResult {
+    data: any
+
+    constructor(data: any) {
+        this.data = data
+    }
 }

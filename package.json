@@ -1,10 +1,10 @@
 {
   "name": "dogboot",
-  "version": "1.1.7",
+  "version": "1.2.0",
   "description": "一款用于nodejs的web框架",
-  "main": "dist/lib/DogBoot.js",
+  "main": "bin/lib/DogBoot.js",
   "files": [
-    "dist/lib"
+    "bin/lib"
   ],
   "scripts": {
     "tsc": "tsc -w",
@@ -29,14 +29,18 @@
   },
   "homepage": "https://github.com/dogzhang/dogboot#readme",
   "dependencies": {
+    "chokidar": "^3.0.0",
     "koa": "^2.7.0",
     "koa-body": "^4.1.0",
     "koa-router": "^7.4.0",
     "koa-static": "^5.0.0",
-    "pug": "^2.0.3",
     "reflect-metadata": "^0.1.13"
   },
   "devDependencies": {
-    "typescript": "^3.3.4000"
+    "@types/koa": "^2.0.48",
+    "@types/koa-router": "^7.0.40",
+    "@types/koa-static": "^4.0.1",
+    "@types/node": "^11.13.11",
+    "typescript": "^3.5.1"
   }
 }
