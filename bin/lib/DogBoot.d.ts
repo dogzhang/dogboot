@@ -5,7 +5,6 @@ import 'reflect-metadata';
 export interface DIContainerOptions {
     enableHotload?: boolean;
     hotloadDebounceInterval?: number;
-    componentInstanceMap?: Map<any, any>;
 }
 export declare class DIContainer {
     private componentInstanceMapKeyByFilenameAndClassName;
@@ -39,6 +38,7 @@ export declare class DIContainer {
     private getParamInstances;
     private resolveAutowiredDependences;
     private getConfigValue;
+    private addConfigFilePath;
 }
 /**
  * 包含一些公开的实用工具方法
@@ -106,7 +106,7 @@ export declare function FreeExceptionFilter(target: Function): void;
  * Config是一种特殊的Component
  * @param field 需要映射的节
  */
-export declare function Config(opts: {
+export declare function Config(opts?: {
     name?: string;
     field?: string;
 }): (target: Function) => void;
@@ -276,7 +276,7 @@ export declare function ExceptionHandler(type: Function): (target: any, name: st
  * 标记此字段在reload的时候，保持在内存中并且继承到新的实例
  */
 export declare function KeepAlive(target: any, name: string): void;
-export interface DogWebOptions {
+export interface DogBootOptions {
     prefix?: string;
     staticRootPathName?: string;
     controllerRootPathName?: string;
@@ -284,12 +284,11 @@ export interface DogWebOptions {
     filterRootPathName?: string;
     enableHotload?: boolean;
     /**
-     * 热更新监听文件变化的debounce，单位：毫秒，默认1000
+     * 热更新监听文件变化的debounce，单位：毫秒，默认100
      */
     hotloadDebounceInterval?: number;
     enableApidoc?: boolean;
     apidocPrefix?: string;
-    componentInstanceMap?: Map<any, any>;
     /**
     * 设置html渲染器
     * @param render 一个渲染器函数，此函数接收以下参数
@@ -300,7 +299,7 @@ export interface DogWebOptions {
     */
     render?: (controllerFilePathArr: string[], actionName: string, data: any) => string;
 }
-export declare class DogWebApplication {
+export declare class DogBootApplication {
     private readonly port;
     app: Koa<any, {}>;
     server: Server;
@@ -318,7 +317,7 @@ export declare class DogWebApplication {
     private filterRootPathName;
     private enableApidoc;
     private apidocPrefix;
-    static create(port?: number, _opts?: DogWebOptions): DogWebApplication;
+    static create(port?: number, _opts?: DogBootOptions): DogBootApplication;
     private constructor();
     private init;
     private build;

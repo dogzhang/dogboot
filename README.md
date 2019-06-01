@@ -1,4 +1,4 @@
-## 介绍
+# 介绍
 dogboot是一款用于nodejs的web框架，使用TypeScript编写，支持最新的js/ts语法。在设计理念上，我们致敬了著名的Java框架Spring Boot，装饰器、依赖注入等等，都是web开发中最流行的技术。
 ## 技术要点
 - 支持且仅支持TypeScript
@@ -7,7 +7,7 @@ dogboot是一款用于nodejs的web框架，使用TypeScript编写，支持最新
 - 装饰器
 - 依赖注入
 - 约定优于配置
-## 从0开始
+# 小试牛刀
 新建项目并且安装dogboot
 ```bash
 mkdir dogboot-demo
@@ -21,7 +21,7 @@ npm i typescript -D
 ├──src
 |  ├── controller
 |  |   └── HomeController.ts
-|  └── App.ts
+|  └── app.ts
 ├──package-lock.json
 ├──package.json
 └──tsconfig.json
@@ -40,10 +40,10 @@ package.json是npm的包管理清单文件。现在，请打开这个文件，�
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "dogboot": "^1.1.5"
+    "dogboot": "^1.2.0"
   },
   "devDependencies": {
-    "typescript": "^3.3.4000"
+    "typescript": "^3.5.1"
   }
 }
 ```
@@ -51,7 +51,7 @@ package.json是npm的包管理清单文件。现在，请打开这个文件，�
 ```
 "scripts": {
   "tsc": "tsc",
-  "start": "node dist/App.js"
+  "start": "node bin/app.js"
 }
 ```
 tsconfig.json是TypeScript项目的可选配置文件，对于dogboot我们建议填入以下内容，
@@ -63,7 +63,7 @@ tsconfig.json是TypeScript项目的可选配置文件，对于dogboot我们建�
     "experimentalDecorators": true,
     "target": "esnext",
     "lib": ["es2017"],
-    "outDir": "dist"
+    "outDir": "bin"
   },
   "include": ["src"]
 }
@@ -72,13 +72,11 @@ tsconfig.json是TypeScript项目的可选配置文件，对于dogboot我们建�
 
 是时候写（复制/粘贴）点代码了
 
-打开App.ts，输入以下内容
+打开app.ts，输入以下内容
 ```typescript
-import path = require('path');
 import { DogBootApplication } from "dogboot";
 
-let appRoot = path.resolve(__dirname, '..')
-new DogBootApplication(appRoot).run()
+DogBootApplication.create().runAsync()
 ```
 打开HomeController.ts，输入以下内容
 ```typescript
@@ -110,21 +108,21 @@ Hello World
 这就是一个最小可运行的dogboot程序，怎么样，简单吧🙃
 
 当然你肯定不会满足于这个Hello World例子，那就请继续阅读我们的进阶文档吧
-
+# 更进一步
 ## DogBootApplication
-一个dogboot程序始于DogBootApplication类，只需要提供一个appRootPath参数就可以了。执行run方法的时候，dogboot会扫描appRootPath目录下的以下文件夹。
+一个dogboot程序始于DogBootApplication类，dogboot会根据提供的配置选项扫描appRootPath目录下的文件夹。
 
-dist/controller：此目录包含所有的控制器文件，关于controller的更多介绍，请参考[@Controller](#Controller)
+默认会扫描controller、startup、filter这三个目录，如果需要修改为其他目录，请自行配置
 
-dist/startup：此目录包含所有的预启动组件，关于startup的更多介绍，请参考[@StartUp](#StartUp)
+程序会自动判断当前的运行环境，如果是直接运行ts文件，会扫描src目录，如果是运行编译后的js文件，会扫描bin目录。
 
-程序会自动判断当前的运行环境，如果是直接运行ts文件，会扫描src目录，如果是运行编译后的js文件，会扫描dist目录。
-
-⚠️所以实际上，我们指定了编译后的文件存放的目录为dist，不能修改。
+⚠️所以实际上，我们指定了编译后的文件存放的目录为bin，不能修改。
 ## @Controller
-使用@Controller装饰器标记一个类为控制器，并且传入一个可选的path参数，用于指定路由前缀。按照约定，控制器文件名应该以Controller结尾，但这不是必须的。path参数是可选的，如果不传，dogboot会指定这个类名的前面一部分并且转为小写作为路由前缀。比如：HomeController的默认路由前缀是/home。
+使用@Controller装饰器标记一个类为控制器，并且传入一个可选的path参数，用于指定路由前缀。按照约定，控制器文件名应该以Controller结尾，但这不是必须的。
+
+path参数也是可选的，如果不传，dogboot会指定这个类名的前面一部分并且转为小写作为路由前缀。比如：HomeController的默认路由前缀是/home。
 ## @StartUp
-使用@StartUp装饰器标记一个类为预启动组件，并且传入一个可选的order参数。dogboot程序在正式接受用户的请求之前会先执行预启动组件的启动方法，使用order参数定制你希望的启动顺序。
+使用@StartUp装饰器标记一个类为预启动组件，并且传入一个可选的order参数。dogboot程序在启动其他组件之前会先执行预启动组件的启动方法，使用order参数定制你希望的启动顺序。
 一个常规的预启动组件使用方式如下
 ```typescript
 import { StartUp, Init } from "dogboot";
@@ -176,13 +174,13 @@ Hello World 1
 ```
 我们的预启动组件生效了，它通过构造器被注入到HomeController，并且保持了一个index变量，每次执行doSth方法，index会加1
 ## @Config
-使用@Config标记一个类为配置文件映射器，并且传入一个可选的field参数。使用配置文件映射器，而不是require('config.json')，前者得到的对象具有类型声明，更便于使用。
+使用@Config标记一个类为配置文件映射器。使用配置文件映射器，而不是require('xxx.json')，前者得到的对象具有类型声明，更便于使用。
+
+name参数表示使用的配置文件名，默认为config.json
 
 field参数表示映射器映射的配置节，如果不传，表示整个配置文件，使用a.b.c映射a节下的b节下的c。
 
 ⚠️所以，不要在你的配置文件中使用任何类似于a.b表示一个节，这会使配置映射器出错。
-
-⚠️哦，别忘记，我们也限定了你的配置文件名必须叫config.json，并且位于程序根目录，就是那个package.json同级的目录。
 
 一个常规的配置文件映射器使用方式如下
 
@@ -202,7 +200,7 @@ field参数表示映射器映射的配置节，如果不传，表示整个配置
 ```typescript
 import { Config, Typed } from "dogboot";
 
-@Config('mysql')
+@Config({ field: 'mysql' })
 export class MyConfig {
     @Typed()
     host: string
@@ -293,9 +291,7 @@ export class HomeController {
     }
 }
 ```
-几乎与StartUp一样，区别只是使用了@Component来标记类。
-
-事实上，Controller、StartUp、Config本质上也是Component。
+几乎与StartUp一样，区别只是使用了@Component来标记类，Component表示一般组件，这些组件仅仅具有依赖注入的功能，dogboot还包含很多特殊的组件，请阅读本文档了解更多
 ## @Init
 在组件中，使用@Init标记一个方法，此方法用于初始化组件，支持异步方法。
 
@@ -354,7 +350,6 @@ export class ItemService {
 仔细看，使用了@Autowired(() => UserService)而不是@Autowired(UserService)
 
 使用@Autowired(UserService)会出现在ItemService中解析UserService时UserService为空或者在UserService中解析ItemService时ItemService的情况，这取决于两者的加载顺序。
-
 ## @Mapping
 用于将Controller内的方法映射为Action，需要传入method以及path参数。这两个参数不是必须的，默认会映射为get方法，并且使用方法名作为路由，为了方便书写，我们提前准备好了几种常用的method对应的Mapping。分别是@GetMapping、@PostMapping、@PutMapping、@PatchMapping、@DeleteMapping、@HeadMapping。如果你要映射所有的method，可以使用AllMapping。
 ## @BindContext
@@ -497,9 +492,9 @@ post参数为
 那么我们会看到我们程序的控制台有错误打印，类似于
 ```
   Error: 自定义验证不通过
-      at C:\Users\zhang\Desktop\dogboot-demo\node_modules\dogboot\dist\lib\DogBoot.js:589:23
+      at C:\Users\zhang\Desktop\dogboot-demo\node_modules\dogboot\bin\lib\DogBoot.js:589:23
       at Generator.next (<anonymous>)
-      at fulfilled (C:\Users\zhang\Desktop\dogboot-demo\node_modules\dogboot\dist\lib\DogBoot.js:13:58)
+      at fulfilled (C:\Users\zhang\Desktop\dogboot-demo\node_modules\dogboot\bin\lib\DogBoot.js:13:58)
       at process._tickCallback (internal/process/next_tick.js:68:7)
 ```
 postman测试工具收到的回复是
@@ -516,10 +511,10 @@ Internal Server Error
 
 1、创建一个ExceptionFilter组件，内容如下
 ```typescript
-import { Component, ExceptionHandler } from "dogboot";
+import { FreeExceptionFilter, ExceptionHandler } from "dogboot";
 
-@Component
-export class MyExceptionFilter {
+@FreeExceptionFilter
+export class MyFreeExceptionFilter {
     @ExceptionHandler(Error)
     async handleError(error: Error, ctx: any) {
         error.stack && console.log(error.stack)
@@ -534,11 +529,11 @@ import { StartUp1 } from "../startup/StartUp1";
 import { MyConfig } from "../MyConfig";
 import { HomeService } from "../service/HomeService";
 import { UpdateNameIM } from "../model/home/UpdateNameIM";
-import { MyExceptionFilter } from "../filter/MyExceptionFilter";
+import { MyFreeExceptionFilter } from "../filter/MyFreeExceptionFilter";
 
 @Controller('/home')
 //放在这里对此Controller下所有Action生效
-@UseExceptionFilter(MyExceptionFilter)
+@UseExceptionFilter(MyFreeExceptionFilter)
 export class HomeController {
     constructor(private readonly startUp1: StartUp1, private readonly myConfig: MyConfig, private readonly homeService: HomeService) { }
 
@@ -561,7 +556,7 @@ import { StartUp1 } from "../startup/StartUp1";
 import { MyConfig } from "../MyConfig";
 import { HomeService } from "../service/HomeService";
 import { UpdateNameIM } from "../model/home/UpdateNameIM";
-import { MyExceptionFilter } from "../filter/MyExceptionFilter";
+import { MyFreeExceptionFilter } from "../filter/MyFreeExceptionFilter";
 
 @Controller('/home')
 export class HomeController {
@@ -574,7 +569,7 @@ export class HomeController {
     }
 
     //放在这里仅对此Action生效
-    @UseExceptionFilter(MyExceptionFilter)
+    @UseExceptionFilter(MyFreeExceptionFilter)
     @PostMapping('/updateName')
     async updateName(@BindBody im: UpdateNameIM) {
         return im
@@ -590,25 +585,20 @@ export class HomeController {
 ```
 这样，就实现了一个异常过滤器
 
-异常过滤器也可以通过DogBootApplication.useExceptionFilter(MyExceptionFilter)设置，这样的设置将会全局有效
-
-对于每个Action，只会有一个ExceptionFilter生效，优先级为
-```
-ExceptionFilter on Action > ExceptionFilter on Controller > globalExceptionFilter
-```
+这是使用自由过滤器的例子，事实上，更多时候，只需要把过滤器放在filter目录即可被自动扫描到，并且全局有效，参考@ExceptionFilter
 ## @UseActionFilter
 使用@UseActionFilter标记一个Controller或者Action使用指定的Action过滤器。
 
-ActionFilter在权限处理时非常有用，设置了ActionFilter的Action在执行前后会执行ActionFilter内的@DoBefore、@DoAfter方法。
+FreeActionFilter在权限处理时非常有用，设置了FreeActionFilter的Action在执行前后会执行FreeActionFilter内的@DoBefore、@DoAfter方法。
 
 举个例子，我们要在每一个接口请求判断用户的身份信息，如果身份信息不存在或者不合法，就不允许继续执行Action。
 
 1、创建一个ActionFilter，内容如下
 ```typescript
-import { Component, DoBefore, ActionFilterContext } from "dogboot";
+import { FreeActionFilter, DoBefore, ActionFilterContext } from "dogboot";
 
-@Component
-export class MyActionFilter {
+@FreeActionFilter
+export class MyFreeActionFilter {
     @DoBefore
     doBefore(actionFilterContext: ActionFilterContext) {
         let ticket = actionFilterContext.ctx.get('ticket')
@@ -626,13 +616,13 @@ import { StartUp1 } from "../startup/StartUp1";
 import { MyConfig } from "../MyConfig";
 import { HomeService } from "../service/HomeService";
 import { UpdateNameIM } from "../model/home/UpdateNameIM";
-import { MyExceptionFilter } from "../filter/MyExceptionFilter";
-import { MyActionFilter } from "../filter/MyActionFilter";
+import { MyFreeExceptionFilter } from "../filter/MyFreeExceptionFilter";
+import { MyFreeActionFilter } from "../filter/MyFreeActionFilter";
 
 @Controller('/home')
 //放在这里对此Controller下所有Action生效
-@UseExceptionFilter(MyExceptionFilter)
-@UseActionFilter(MyActionFilter)
+@UseExceptionFilter(MyFreeExceptionFilter)
+@UseActionFilter(MyFreeActionFilter)
 export class HomeController {
     constructor(private readonly startUp1: StartUp1, private readonly myConfig: MyConfig, private readonly homeService: HomeService) { }
 
@@ -655,153 +645,9 @@ export class HomeController {
     "message": "Unauthorized"
 }
 ```
-这样，就实现了一个ActionFilter，此例子仅用于介绍UseExceptionFilter用法，实际生产中不建议使用这样简单的处理。
+这样，就实现了一个FreeActionFilter，此例子仅用于介绍UseExceptionFilter用法，实际生产中不建议使用这样简单的处理。
 
 与UseExceptionFilter一样，UseActionFilter也可用于Action，或者使用DogBootApplication.useActionFilter(MyActionFilter)全局添加。
-
-对于每个Action，可以使用多个ActionFilter，多个ActionFilter的执行顺序使用以下例子说明
-```typescript
-new DogBootApplication(appRoot)
-    .useActionFilter(ActionFilter0)
-    .useActionFilter(ActionFilter1)
-    .run()
-```
-```typescript
-@Controller('/home')
-@UseActionFilter(ActionFilter2)
-@UseActionFilter(ActionFilter3)
-export class HomeController {
-    @GetMapping('/index')
-    @UseActionFilter(ActionFilter4)
-    @UseActionFilter(ActionFilter5)
-    async index() {
-        console.log('执行/home/index')
-        return 'ok'
-    }
-}
-```
-```typescript
-import { ActionFilterContext, DoBefore, DoAfter, Component } from "../lib/DogBoot";
-
-@Component
-export class ActionFilter0 {
-
-    @DoBefore
-    doBefore(actionFilterContext: ActionFilterContext) {
-        console.log('doBefore0', actionFilterContext.controller.name, actionFilterContext.action)
-    }
-
-    @DoAfter
-    doAfter(actionFilterContext: ActionFilterContext) {
-        console.log('doAfter0', actionFilterContext.controller.name, actionFilterContext.action)
-    }
-}
-```
-```typescript
-import { ActionFilterContext, DoBefore, DoAfter, Component } from "../lib/DogBoot";
-
-@Component
-export class ActionFilter1 {
-
-    @DoBefore
-    doBefore(actionFilterContext: ActionFilterContext) {
-        console.log('doBefore1', actionFilterContext.controller.name, actionFilterContext.action)
-    }
-
-    @DoAfter
-    doAfter(actionFilterContext: ActionFilterContext) {
-        console.log('doAfter1', actionFilterContext.controller.name, actionFilterContext.action)
-    }
-}
-```
-```typescript
-import { ActionFilterContext, DoBefore, DoAfter, Component } from "../lib/DogBoot";
-
-@Component
-export class ActionFilter2 {
-
-    @DoBefore
-    doBefore(actionFilterContext: ActionFilterContext) {
-        console.log('doBefore2', actionFilterContext.controller.name, actionFilterContext.action)
-    }
-
-    @DoAfter
-    doAfter(actionFilterContext: ActionFilterContext) {
-        console.log('doAfter2', actionFilterContext.controller.name, actionFilterContext.action)
-    }
-}
-```
-```typescript
-import { ActionFilterContext, DoBefore, DoAfter, Component } from "../lib/DogBoot";
-
-@Component
-export class ActionFilter3 {
-
-    @DoBefore
-    doBefore(actionFilterContext: ActionFilterContext) {
-        console.log('doBefore3', actionFilterContext.controller.name, actionFilterContext.action)
-    }
-
-    @DoAfter
-    doAfter(actionFilterContext: ActionFilterContext) {
-        console.log('doAfter3', actionFilterContext.controller.name, actionFilterContext.action)
-    }
-}
-```
-```typescript
-import { ActionFilterContext, DoBefore, DoAfter, Component } from "../lib/DogBoot";
-
-@Component
-export class ActionFilter4 {
-
-    @DoBefore
-    doBefore(actionFilterContext: ActionFilterContext) {
-        console.log('doBefore4', actionFilterContext.controller.name, actionFilterContext.action)
-    }
-
-    @DoAfter
-    doAfter(actionFilterContext: ActionFilterContext) {
-        console.log('doAfter4', actionFilterContext.controller.name, actionFilterContext.action)
-    }
-}
-```
-```typescript
-import { ActionFilterContext, DoBefore, DoAfter, Component } from "../lib/DogBoot";
-
-@Component
-export class ActionFilter5 {
-
-    @DoBefore
-    doBefore(actionFilterContext: ActionFilterContext) {
-        console.log('doBefore5', actionFilterContext.controller.name, actionFilterContext.action)
-    }
-
-    @DoAfter
-    doAfter(actionFilterContext: ActionFilterContext) {
-        console.log('doAfter5', actionFilterContext.controller.name, actionFilterContext.action)
-    }
-}
-```
-启动程序，在浏览器打开http://localhost:3000/home/index，可以在控制台看到的打印
-```
-doBefore0 HomeController index
-doBefore1 HomeController index
-doBefore2 HomeController index
-doBefore3 HomeController index
-doBefore4 HomeController index
-doBefore5 HomeController index
-doBefore5 HomeController index
-执行/home/index
-doAfter5 HomeController index
-doAfter4 HomeController index
-doAfter3 HomeController index
-doAfter2 HomeController index
-doAfter1 HomeController index
-doAfter0 HomeController index
-```
-对于过滤器中的@DoBefore方法，先添加的先执行，全局 > ActionFilter On Controller > ActionFilter On Action
-
-对于过滤器中的@DoAfter方法，先添加的后执行，全局 < ActionFilter On Controller < ActionFilter On Action
 
 ⚠️注意，不要在过滤器中保存请求上下文信息，因为dogboot所有的组件都是单例的。
 
@@ -814,6 +660,8 @@ actionFilterContext.ctx.state.userName = 'dogzhang'
 然后在HomeController中使用
 ```typescript
 index(@BindContext ctx:any){
-    let userName = ctx.userName
+    let userName = ctx.state.userName
 }
 ```
+# 凡人止步
+dogzhang欲言又止……

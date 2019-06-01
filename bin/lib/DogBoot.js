@@ -16,8 +16,8 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+var DogBootApplication_1;
 Object.defineProperty(exports, "__esModule", { value: true });
-var DogWebApplication_1;
 const fs = require("fs");
 const path = require("path");
 const chokidar = require("chokidar");
@@ -50,9 +50,9 @@ class DIContainer {
     refresh(opts) {
         this.opts = Object.assign({}, opts);
         if (this.opts.hotloadDebounceInterval == null) {
-            this.opts.hotloadDebounceInterval = 1000;
+            this.opts.hotloadDebounceInterval = 100;
         }
-        this.componentInstanceMap = this.opts.componentInstanceMap || new Map();
+        this.componentInstanceMap = new Map();
         if (this.watcher) {
             this.watcher.close();
         }
@@ -77,7 +77,7 @@ class DIContainer {
     }
     reload() {
         Utils.getFileListInFolder(Utils.getExecRootPath()).forEach(a => {
-            if (require.cache[a] != null) {
+            if (require.cache[a]) {
                 delete require.cache[a];
             }
         });
@@ -183,7 +183,7 @@ class DIContainer {
     getConfigValue(target) {
         let configName = target.prototype.$configName;
         let configFilePath = Utils.getConfigFilename(configName);
-        this.configPathSet.add(configFilePath);
+        this.addConfigFilePath(configFilePath);
         let originalVal = require(configFilePath);
         let sectionArr = target.prototype.$configField.split('.').filter((a) => a);
         for (let a of sectionArr) {
@@ -196,6 +196,13 @@ class DIContainer {
             return null;
         }
         return DogUtils.getTypeSpecifiedValue(target, originalVal);
+    }
+    addConfigFilePath(configFilePath) {
+        if (this.configPathSet.has(configFilePath)) {
+            return;
+        }
+        this.configPathSet.add(configFilePath);
+        this.watcher.add(configFilePath);
     }
 }
 exports.DIContainer = DIContainer;
@@ -419,8 +426,9 @@ exports.FreeExceptionFilter = FreeExceptionFilter;
  */
 function Config(opts) {
     return function (target) {
+        opts = opts || {};
         target.prototype.$isConfig = true;
-        target.prototype.$configField = opts.field;
+        target.prototype.$configField = opts.field || '';
         target.prototype.$configName = opts.name || 'config.json';
         Utils.markAsComponent(target);
     };
@@ -822,8 +830,8 @@ function KeepAlive(target, name) {
     target.$aliveFields.push(name);
 }
 exports.KeepAlive = KeepAlive;
-let lastApp;
-let DogWebApplication = DogWebApplication_1 = class DogWebApplication {
+let appMap = new Map();
+let DogBootApplication = DogBootApplication_1 = class DogBootApplication {
     constructor(port = 3000, opts) {
         this.port = port;
         this.app = new Koa();
@@ -832,13 +840,14 @@ let DogWebApplication = DogWebApplication_1 = class DogWebApplication {
     static create(port = 3000, _opts) {
         let opts = _opts || {};
         let app;
+        let lastApp = appMap.get(port);
         if (lastApp) {
             app = lastApp;
             app.init(opts);
         }
         else {
-            app = new DogWebApplication_1(port, opts);
-            lastApp = app;
+            app = new DogBootApplication_1(port, opts);
+            appMap.set(port, app);
         }
         return app;
     }
@@ -866,7 +875,7 @@ let DogWebApplication = DogWebApplication_1 = class DogWebApplication {
         else {
             this.container.refresh(diContainerOptions);
         }
-        this.container.setComponentInstance(DogWebApplication_1, this);
+        this.container.setComponentInstance(DogBootApplication_1, this);
     }
     build() {
         let publicRootPath = path.join(Utils.getAppRootPath(), this.staticRootPathName);
@@ -1083,11 +1092,11 @@ let DogWebApplication = DogWebApplication_1 = class DogWebApplication {
         });
     }
 };
-DogWebApplication = DogWebApplication_1 = __decorate([
+DogBootApplication = DogBootApplication_1 = __decorate([
     Component,
     __metadata("design:paramtypes", [Number, Object])
-], DogWebApplication);
-exports.DogWebApplication = DogWebApplication;
+], DogBootApplication);
+exports.DogBootApplication = DogBootApplication;
 /**
  * 指定此类为控制器
  * Controller是一种特殊的Component

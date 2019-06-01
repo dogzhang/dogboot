@@ -26,7 +26,6 @@ Module.prototype.load = function (filename: string) {
 export interface DIContainerOptions {
     enableHotload?: boolean
     hotloadDebounceInterval?: number
-    componentInstanceMap?: Map<any, any>
 }
 export class DIContainer {
     private componentInstanceMapKeyByFilenameAndClassName: Map<string, Map<string, any>> = new Map()
@@ -42,9 +41,9 @@ export class DIContainer {
     refresh(opts: DIContainerOptions) {
         this.opts = Object.assign({}, opts)
         if (this.opts.hotloadDebounceInterval == null) {
-            this.opts.hotloadDebounceInterval = 1000
+            this.opts.hotloadDebounceInterval = 100
         }
-        this.componentInstanceMap = this.opts.componentInstanceMap || new Map()
+        this.componentInstanceMap = new Map()
         if (this.watcher) {
             this.watcher.close()
         }
@@ -70,7 +69,7 @@ export class DIContainer {
 
     private reload() {
         Utils.getFileListInFolder(Utils.getExecRootPath()).forEach(a => {
-            if (require.cache[a] != null) {
+            if (require.cache[a]) {
                 delete require.cache[a]
             }
         })
@@ -181,7 +180,7 @@ export class DIContainer {
     private getConfigValue(target: Function) {
         let configName = target.prototype.$configName
         let configFilePath = Utils.getConfigFilename(configName)
-        this.configPathSet.add(configFilePath)
+        this.addConfigFilePath(configFilePath)
         let originalVal = require(configFilePath)
         let sectionArr = target.prototype.$configField.split('.').filter((a: any) => a)
         for (let a of sectionArr) {
@@ -194,6 +193,14 @@ export class DIContainer {
             return null
         }
         return DogUtils.getTypeSpecifiedValue(target, originalVal)
+    }
+
+    private addConfigFilePath(configFilePath: string) {
+        if (this.configPathSet.has(configFilePath)) {
+            return
+        }
+        this.configPathSet.add(configFilePath)
+        this.watcher.add(configFilePath)
     }
 }
 
@@ -419,10 +426,11 @@ export function FreeExceptionFilter(target: Function) {
  * Config是一种特殊的Component
  * @param field 需要映射的节
  */
-export function Config(opts: { name?: string, field?: string }) {
+export function Config(opts?: { name?: string, field?: string }) {
     return function (target: Function) {
+        opts = opts || {}
         target.prototype.$isConfig = true
-        target.prototype.$configField = opts.field
+        target.prototype.$configField = opts.field || ''
         target.prototype.$configName = opts.name || 'config.json'
         Utils.markAsComponent(target)
     }
@@ -821,7 +829,7 @@ export function KeepAlive(target: any, name: string) {
     target.$aliveFields.push(name)
 }
 
-export interface DogWebOptions {
+export interface DogBootOptions {
     prefix?: string
     staticRootPathName?: string
     controllerRootPathName?: string
@@ -829,12 +837,11 @@ export interface DogWebOptions {
     filterRootPathName?: string
     enableHotload?: boolean
     /**
-     * 热更新监听文件变化的debounce，单位：毫秒，默认1000
+     * 热更新监听文件变化的debounce，单位：毫秒，默认100
      */
     hotloadDebounceInterval?: number
     enableApidoc?: boolean
     apidocPrefix?: string
-    componentInstanceMap?: Map<any, any>
 
     /**
     * 设置html渲染器
@@ -847,10 +854,10 @@ export interface DogWebOptions {
     render?: (controllerFilePathArr: string[], actionName: string, data: any) => string
 }
 
-let lastApp: DogWebApplication
+let appMap: Map<number, DogBootApplication> = new Map()
 
 @Component
-export class DogWebApplication {
+export class DogBootApplication {
     app = new Koa()
     server: Server
 
@@ -869,24 +876,25 @@ export class DogWebApplication {
     private enableApidoc: boolean
     private apidocPrefix: string
 
-    static create(port: number = 3000, _opts?: DogWebOptions) {
+    static create(port: number = 3000, _opts?: DogBootOptions) {
         let opts = _opts || {}
 
-        let app: DogWebApplication
+        let app: DogBootApplication
+        let lastApp = appMap.get(port)
         if (lastApp) {
             app = lastApp
             app.init(opts)
         } else {
-            app = new DogWebApplication(port, opts)
-            lastApp = app
+            app = new DogBootApplication(port, opts)
+            appMap.set(port, app)
         }
         return app
     }
 
-    private constructor(private readonly port: number = 3000, opts: DogWebOptions) {
+    private constructor(private readonly port: number = 3000, opts: DogBootOptions) {
         this.init(opts)
     }
-    private init(opts: DogWebOptions) {
+    private init(opts: DogBootOptions) {
         this.readyToAcceptRequest = false
         this.globalExceptionFilter = null
         this.globalActionFilters = []
@@ -911,7 +919,7 @@ export class DogWebApplication {
             this.container.refresh(diContainerOptions)
         }
 
-        this.container.setComponentInstance(DogWebApplication, this)
+        this.container.setComponentInstance(DogBootApplication, this)
     }
     private build() {
         let publicRootPath = path.join(Utils.getAppRootPath(), this.staticRootPathName)
