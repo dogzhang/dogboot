@@ -11,6 +11,7 @@ export declare class DIContainer {
     private componentInstanceMap;
     private watcher;
     private opts;
+    private configPathSet;
     constructor(opts: DIContainerOptions);
     refresh(opts: DIContainerOptions): void;
     private watch;
