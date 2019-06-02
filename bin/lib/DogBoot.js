@@ -41,10 +41,10 @@ Module.prototype.load = function (filename) {
     }
     catch (_a) { }
 };
+let configPathSet = new Set();
 class DIContainer {
     constructor(opts) {
         this.componentInstanceMapKeyByFilenameAndClassName = new Map();
-        this.configPathSet = new Set();
         this.refresh(opts);
     }
     refresh(opts) {
@@ -81,10 +81,10 @@ class DIContainer {
                 delete require.cache[a];
             }
         });
-        this.configPathSet.forEach(a => {
+        configPathSet.forEach(a => {
             delete require.cache[a];
         });
-        this.configPathSet.clear();
+        configPathSet.clear();
         this.componentInstanceMap.clear();
         require(process.mainModule.filename);
     }
@@ -198,10 +198,13 @@ class DIContainer {
         return DogUtils.getTypeSpecifiedValue(target, originalVal);
     }
     addConfigFilePath(configFilePath) {
-        if (this.configPathSet.has(configFilePath)) {
+        if (!this.opts.enableHotload) {
             return;
         }
-        this.configPathSet.add(configFilePath);
+        if (configPathSet.has(configFilePath)) {
+            return;
+        }
+        configPathSet.add(configFilePath);
         this.watcher.add(configFilePath);
     }
 }

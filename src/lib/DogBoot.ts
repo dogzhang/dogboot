@@ -196,6 +196,9 @@ export class DIContainer {
     }
 
     private addConfigFilePath(configFilePath: string) {
+        if (!this.opts.enableHotload) {
+            return
+        }
         if (this.configPathSet.has(configFilePath)) {
             return
         }
