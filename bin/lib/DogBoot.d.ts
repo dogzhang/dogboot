@@ -82,25 +82,25 @@ export declare function StartUp(order?: number): (target: Function) => void;
  * ActionFilter是一种特殊的Component
  * @param order 优先级，值越大优先级越高
  */
-export declare function ActionFilter(order?: number): (target: Function) => void;
+export declare function GlobalActionFilter(order?: number): (target: Function) => void;
 /**
- * 标记此类为自由请求过滤器，除非被显式使用，否则不会生效，可以作用于Controller以及Action
- * 该过滤器优先级高于全局，一个Controller或者Action同时使用多个自由过滤器时，靠前的优先级更高
+ * 标记此类为局部请求过滤器，除非被显式使用，否则不会生效，可以作用于Controller以及Action
+ * 该过滤器优先级高于全局，一个Controller或者Action同时使用多个局部过滤器时，靠前的优先级更高
  * 配合UseActionFilter来使用
  */
-export declare function FreeActionFilter(target: Function): void;
+export declare function ActionFilter(target: Function): void;
 /**
  * 标记此类为全局异常过滤器，此类将会被dogboot自动扫描到并且应用到所有的控制器以及其Action
  * 注意，一个app只能有一个全局异常过滤器，请删除多余的全局异常过滤器，以免程序运行结果不符合预期
  * ExceptionFilter是一种特殊的Component
  */
-export declare function ExceptionFilter(target: Function): void;
+export declare function GlobalExceptionFilter(target: Function): void;
 /**
- * 标记此类为自由异常过滤器，除非被显式使用，否则不会生效，可以作用于Controller以及Action
- * 该过滤器优先级高于全局，一个Controller或者Action同时使用多个自由过滤器时，只会使用第一个
+ * 标记此类为局部异常过滤器，除非被显式使用，否则不会生效，可以作用于Controller以及Action
+ * 该过滤器优先级高于全局，一个Controller或者Action同时使用多个局部过滤器时，只会使用第一个
  * 配合UseExceptionFilter来使用
  */
-export declare function FreeExceptionFilter(target: Function): void;
+export declare function ExceptionFilter(target: Function): void;
 /**
  * 表示一个配置文件映射器
  * Config是一种特殊的Component

@@ -386,7 +386,7 @@ export function StartUp(order: number = 0) {
  * ActionFilter是一种特殊的Component
  * @param order 优先级，值越大优先级越高
  */
-export function ActionFilter(order: number = 0) {
+export function GlobalActionFilter(order: number = 0) {
     return function (target: Function) {
         target.prototype.$isActionFilter = true
         target.prototype.$order = order
@@ -395,11 +395,11 @@ export function ActionFilter(order: number = 0) {
 }
 
 /**
- * 标记此类为自由请求过滤器，除非被显式使用，否则不会生效，可以作用于Controller以及Action
- * 该过滤器优先级高于全局，一个Controller或者Action同时使用多个自由过滤器时，靠前的优先级更高
+ * 标记此类为局部请求过滤器，除非被显式使用，否则不会生效，可以作用于Controller以及Action
+ * 该过滤器优先级高于全局，一个Controller或者Action同时使用多个局部过滤器时，靠前的优先级更高
  * 配合UseActionFilter来使用
  */
-export function FreeActionFilter(target: Function) {
+export function ActionFilter(target: Function) {
     target.prototype.$isFreeActionFilter = true
     Utils.markAsComponent(target)
 }
@@ -409,17 +409,17 @@ export function FreeActionFilter(target: Function) {
  * 注意，一个app只能有一个全局异常过滤器，请删除多余的全局异常过滤器，以免程序运行结果不符合预期
  * ExceptionFilter是一种特殊的Component
  */
-export function ExceptionFilter(target: Function) {
+export function GlobalExceptionFilter(target: Function) {
     target.prototype.$isExceptionFilter = true
     Utils.markAsComponent(target)
 }
 
 /**
- * 标记此类为自由异常过滤器，除非被显式使用，否则不会生效，可以作用于Controller以及Action
- * 该过滤器优先级高于全局，一个Controller或者Action同时使用多个自由过滤器时，只会使用第一个
+ * 标记此类为局部异常过滤器，除非被显式使用，否则不会生效，可以作用于Controller以及Action
+ * 该过滤器优先级高于全局，一个Controller或者Action同时使用多个局部过滤器时，只会使用第一个
  * 配合UseExceptionFilter来使用
  */
-export function FreeExceptionFilter(target: Function) {
+export function ExceptionFilter(target: Function) {
     target.prototype.$isFreeExceptionFilter = true
     Utils.markAsComponent(target)
 }
