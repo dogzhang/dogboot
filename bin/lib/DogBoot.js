@@ -22,10 +22,11 @@ const fs = require("fs");
 const path = require("path");
 const chokidar = require("chokidar");
 let { Module } = require("module");
+const Koa = require("koa");
 const Router = require("koa-router");
 const koaBody = require("koa-body");
 const koaStatic = require("koa-static");
-const Koa = require("koa");
+const cors = require("koa2-cors");
 const http = require("http");
 require("reflect-metadata");
 let oldLoadFunc = Module.prototype.load;
@@ -868,6 +869,8 @@ let DogBootApplication = DogBootApplication_1 = class DogBootApplication {
         this.filterRootPathName = opts.filterRootPathName || 'filter';
         this.enableApidoc = opts.enableApidoc != null ? opts.enableApidoc : false;
         this.apidocPrefix = opts.apidocPrefix || 'apidoc';
+        this.enableCors = opts.enableCors != null ? opts.enableCors : false;
+        this.corsOptions = opts.corsOptions;
         let diContainerOptions = {
             enableHotload: opts.enableHotload,
             hotloadDebounceInterval: opts.hotloadDebounceInterval
@@ -884,6 +887,9 @@ let DogBootApplication = DogBootApplication_1 = class DogBootApplication {
         let publicRootPath = path.join(Utils.getAppRootPath(), this.staticRootPathName);
         this.app.use(koaStatic(publicRootPath));
         this.app.use(koaBody());
+        if (this.enableCors) {
+            this.app.use(cors(this.corsOptions));
+        }
         let controllerRootPath = path.join(Utils.getExecRootPath(), this.controllerRootPathName);
         let spiltStr = '/';
         if (process.platform == 'win32') {

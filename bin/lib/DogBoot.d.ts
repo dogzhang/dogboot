@@ -298,6 +298,21 @@ export interface DogBootOptions {
     * 渲染器需要返回一个字符串，这个字符串就是最终渲染出来的html
     */
     render?: (controllerFilePathArr: string[], actionName: string, data: any) => string;
+    /**
+     * 是否允许跨域
+     */
+    enableCors?: boolean;
+    /**
+     * 跨域选项，dogboot使用koa2-cors这个包实现跨域，参见https://github.com/zadzbw/koa2-cors
+     */
+    corsOptions?: {
+        origin?: string | ((ctx: Koa.Context) => boolean | string);
+        exposeHeaders?: string[];
+        maxAge?: number;
+        credentials?: boolean;
+        allowMethods?: string[];
+        allowHeaders?: string[];
+    };
 }
 export declare class DogBootApplication {
     private readonly port;
@@ -317,6 +332,8 @@ export declare class DogBootApplication {
     private filterRootPathName;
     private enableApidoc;
     private apidocPrefix;
+    private enableCors;
+    private corsOptions;
     static create(port?: number, _opts?: DogBootOptions): DogBootApplication;
     private constructor();
     private init;

@@ -2,10 +2,11 @@ import fs = require('fs');
 import path = require('path');
 import chokidar = require('chokidar');
 let { Module } = require("module");
+import Koa = require('koa');
 import Router = require('koa-router');
 import koaBody = require('koa-body');
 import koaStatic = require('koa-static');
-import Koa = require('koa');
+import cors = require('koa2-cors')
 import { Server } from 'http';
 import http = require('http');
 import 'reflect-metadata'
@@ -855,6 +856,23 @@ export interface DogBootOptions {
     * 渲染器需要返回一个字符串，这个字符串就是最终渲染出来的html
     */
     render?: (controllerFilePathArr: string[], actionName: string, data: any) => string
+
+    /**
+     * 是否允许跨域
+     */
+    enableCors?: boolean
+
+    /**
+     * 跨域选项，dogboot使用koa2-cors这个包实现跨域，参见https://github.com/zadzbw/koa2-cors
+     */
+    corsOptions?: {
+        origin?: string | ((ctx: Koa.Context) => boolean | string);
+        exposeHeaders?: string[];
+        maxAge?: number;
+        credentials?: boolean;
+        allowMethods?: string[];
+        allowHeaders?: string[];
+    }
 }
 
 let appMap: Map<number, DogBootApplication> = new Map()
@@ -878,6 +896,15 @@ export class DogBootApplication {
     private filterRootPathName: string
     private enableApidoc: boolean
     private apidocPrefix: string
+    private enableCors: boolean
+    private corsOptions: {
+        origin?: string | ((ctx: Koa.Context) => boolean | string);
+        exposeHeaders?: string[];
+        maxAge?: number;
+        credentials?: boolean;
+        allowMethods?: string[];
+        allowHeaders?: string[];
+    }
 
     static create(port: number = 3000, _opts?: DogBootOptions) {
         let opts = _opts || {}
@@ -911,6 +938,8 @@ export class DogBootApplication {
         this.filterRootPathName = opts.filterRootPathName || 'filter'
         this.enableApidoc = opts.enableApidoc != null ? opts.enableApidoc : false
         this.apidocPrefix = opts.apidocPrefix || 'apidoc'
+        this.enableCors = opts.enableCors != null ? opts.enableCors : false
+        this.corsOptions = opts.corsOptions
 
         let diContainerOptions: DIContainerOptions = {
             enableHotload: opts.enableHotload,
@@ -928,6 +957,10 @@ export class DogBootApplication {
         let publicRootPath = path.join(Utils.getAppRootPath(), this.staticRootPathName)
         this.app.use(koaStatic(publicRootPath))
         this.app.use(koaBody())
+
+        if (this.enableCors) {
+            this.app.use(cors(this.corsOptions))
+        }
 
         let controllerRootPath = path.join(Utils.getExecRootPath(), this.controllerRootPathName)
         let spiltStr = '/'
