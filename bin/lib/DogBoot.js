@@ -514,12 +514,12 @@ function Func(func) {
     return function (target, name) {
         target.$validator = target.$validator || {};
         target.$validator[name] = target.$validator[name] || [];
-        target.$validator[name].push((a) => __awaiter(this, void 0, void 0, function* () {
-            let result = yield func(a);
+        target.$validator[name].push(a => {
+            let result = func(a);
             if (!result[0]) {
                 throw new IllegalArgumentException(result[1], target.constructor.name, name);
             }
-        }));
+        });
     };
 }
 exports.Func = Func;

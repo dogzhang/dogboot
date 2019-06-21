@@ -521,8 +521,8 @@ export function Func(func: (arg0: any) => [boolean, string?]) {
     return function (target: any, name: string) {
         target.$validator = target.$validator || {}
         target.$validator[name] = target.$validator[name] || []
-        target.$validator[name].push(async a => {
-            let result = await func(a)
+        target.$validator[name].push(a => {
+            let result = func(a)
             if (!result[0]) {
                 throw new IllegalArgumentException(result[1], target.constructor.name, name)
             }
