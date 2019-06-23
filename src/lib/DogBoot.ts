@@ -79,7 +79,7 @@ export class DIContainer {
         })
         this.configPathSet.clear()
         this.componentInstanceMap.clear()
-        require(process.mainModule.filename)
+        require(Utils.getEntryFilename())
     }
 
     /**
@@ -335,12 +335,16 @@ class Utils {
         })
     }
 
+    static getEntryFilename() {
+        return process.env.dogbootEntry || process.mainModule.filename
+    }
+
     static getAppRootPath() {
-        return path.resolve(process.mainModule.filename, '..', '..')
+        return path.resolve(Utils.getEntryFilename(), '..', '..')
     }
 
     static getExecRootPath() {
-        if (process.mainModule.filename.endsWith('.ts')) {
+        if (Utils.getEntryFilename().endsWith('.ts')) {
             return path.join(this.getAppRootPath(), 'src')
         } else {
             return path.join(this.getAppRootPath(), 'bin')

@@ -87,7 +87,7 @@ class DIContainer {
         });
         this.configPathSet.clear();
         this.componentInstanceMap.clear();
-        require(process.mainModule.filename);
+        require(Utils.getEntryFilename());
     }
     /**
      * 设置组件实例，实际上是从一个Map<any, any>获取数据，所以key、value可以自由设置以及获取
@@ -335,11 +335,14 @@ class Utils {
             }, milliseconds);
         });
     }
+    static getEntryFilename() {
+        return process.env.dogbootEntry || process.mainModule.filename;
+    }
     static getAppRootPath() {
-        return path.resolve(process.mainModule.filename, '..', '..');
+        return path.resolve(Utils.getEntryFilename(), '..', '..');
     }
     static getExecRootPath() {
-        if (process.mainModule.filename.endsWith('.ts')) {
+        if (Utils.getEntryFilename().endsWith('.ts')) {
             return path.join(this.getAppRootPath(), 'src');
         }
         else {
