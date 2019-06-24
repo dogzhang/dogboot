@@ -7,3 +7,11 @@ export class HomeController {
         return 'ok'
     }
 }
+
+@Controller('')
+export class Home1Controller {
+    @GetMapping('')
+    async index() {
+        return 'root'
+    }
+}

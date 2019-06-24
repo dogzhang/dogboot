@@ -1116,7 +1116,12 @@ exports.DogBootApplication = DogBootApplication;
  */
 function Controller(path = null) {
     return function (target) {
-        target.prototype.$path = path || '/' + target.name.replace(/Controller$/i, '');
+        if (path == null) {
+            target.prototype.$path = '/' + target.name.replace(/Controller$/i, '');
+        }
+        else {
+            target.prototype.$path = path;
+        }
         target.prototype.$isController = true;
         Utils.markAsComponent(target);
     };
@@ -1131,7 +1136,12 @@ function Mapping(type = 'get', path = null) {
     return function (target, name) {
         let action = target[name];
         action.$method = type.toLowerCase();
-        action.$path = path || '/' + action.name;
+        if (path == null) {
+            action.$path = '/' + action.name;
+        }
+        else {
+            action.$path = path;
+        }
         action.$paramTypes = Reflect.getMetadata('design:paramtypes', target, name);
     };
 }

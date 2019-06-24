@@ -1181,7 +1181,11 @@ export class DogBootApplication {
  */
 export function Controller(path: string = null) {
     return function (target: Function) {
-        target.prototype.$path = path || '/' + target.name.replace(/Controller$/i, '')
+        if (path == null) {
+            target.prototype.$path = '/' + target.name.replace(/Controller$/i, '')
+        } else {
+            target.prototype.$path = path
+        }
         target.prototype.$isController = true
         Utils.markAsComponent(target)
     }
@@ -1196,7 +1200,11 @@ export function Mapping(type: string = 'get', path: string = null) {
     return function (target: any, name: string) {
         let action = target[name]
         action.$method = type.toLowerCase()
-        action.$path = path || '/' + action.name
+        if (path == null) {
+            action.$path = '/' + action.name
+        } else {
+            action.$path = path
+        }
         action.$paramTypes = Reflect.getMetadata('design:paramtypes', target, name)
     }
 }

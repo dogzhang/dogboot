@@ -18,3 +18,9 @@ test('controller', async function () {
     expect(resp.status).toBe(200)
     expect(resp.text).toBe('ok')
 })
+
+test('controller-root-and-multi-controllrs-in-a-single-file', async function () {
+    let resp = await request(server).get('')
+    expect(resp.status).toBe(200)
+    expect(resp.text).toBe('root')
+})
