@@ -127,8 +127,10 @@ export class DIContainer {
         let instance = null
         if (target.prototype.$isConfig) {
             instance = this.getConfigValue(target)
+            this.componentInstanceMap.set(target, instance)
         } else {
             instance = Reflect.construct(target, await this.getParamInstances(target))
+            this.componentInstanceMap.set(target, instance)
             await this.resolveAutowiredDependences(instance)
 
             if (lastInstance) {
@@ -147,8 +149,6 @@ export class DIContainer {
 
         map.set(target.name, instance)
         this.componentInstanceMapKeyByFilenameAndClassName.set(target.prototype.$filename, map)
-
-        this.componentInstanceMap.set(target, instance)
 
         return instance
     }
@@ -227,20 +227,24 @@ export class DogUtils {
         if (type == Date) {
             return new Date(originalVal) as any
         }
-        let newVal = Reflect.construct(type, [])
-        type.prototype.$fields && Object.entries(type.prototype.$fields).forEach(([k, v]) => {
-            let typeSpecifiedMap: TypeSpecifiedMap = v as TypeSpecifiedMap
-            if (typeSpecifiedMap.typeSpecifiedType == TypeSpecifiedType.General) {
-                newVal[k] = this.getTypeSpecifiedValue(typeSpecifiedMap.type, originalVal[typeSpecifiedMap.sourceName])
-            } else if (typeSpecifiedMap.typeSpecifiedType == TypeSpecifiedType.Array) {
-                if (Array.isArray(originalVal[typeSpecifiedMap.sourceName])) {
-                    newVal[k] = originalVal[typeSpecifiedMap.sourceName].map((a: any) => this.getTypeSpecifiedValue(typeSpecifiedMap.type, a))
-                } else {
-                    newVal[k] = null
+        if (type.prototype.$fields) {
+            let newVal = Reflect.construct(type, [])
+            Object.entries(type.prototype.$fields).forEach(([k, v]) => {
+                let typeSpecifiedMap: TypeSpecifiedMap = v as TypeSpecifiedMap
+                if (typeSpecifiedMap.typeSpecifiedType == TypeSpecifiedType.General) {
+                    newVal[k] = this.getTypeSpecifiedValue(typeSpecifiedMap.type, originalVal[typeSpecifiedMap.sourceName])
+                } else if (typeSpecifiedMap.typeSpecifiedType == TypeSpecifiedType.Array) {
+                    if (Array.isArray(originalVal[typeSpecifiedMap.sourceName])) {
+                        newVal[k] = originalVal[typeSpecifiedMap.sourceName].map((a: any) => this.getTypeSpecifiedValue(typeSpecifiedMap.type, a))
+                    } else {
+                        newVal[k] = null
+                    }
                 }
-            }
-        })
-        return newVal
+            })
+            return newVal
+        } else {
+            return originalVal
+        }
     }
 
     /**
@@ -369,7 +373,7 @@ export function Component(target: Function) {
  * 指定此类为预启动组件，将在程序启动时预先启动。
  * 事实上，所有的组件只要被使用到都会在程序启动时预先启动，使用StartUp标记那些没有被其他组件使用的组件，确保此组件也能启动
  * StartUp是一种特殊的Component
- * @param order 优先级，值越大越优先启动
+ * @param order 优先级，值越大越优先启动，默认值：0
  */
 export function StartUp(order: number = 0) {
     return function (target: Function) {
@@ -460,7 +464,7 @@ export function Autowired(type: Function) {
 }
 
 /**
- * 指定此字段需要转换为指定类型
+ * 指定此字段需要转换为指定类型，仅仅支持Number、String、Date
  * @param type 确切类型
  * @param sourceNameOrGetSourceNameFunc 映射的原始字段或者映射规则，默认为此字段名字
  */
@@ -577,7 +581,7 @@ export function NotBlank(errorMesage: string = null) {
 }
 
 /**
- * 长度验证器，只能用于String、Array的验证
+ * 长度验证器，只能用于String、Array的验证，对于String，不会trim
  * 不会对null值进行验证，如需同时验证null，请添加@NotNull
  * @param min 最小长度
  * @param max 最大长度
@@ -687,7 +691,8 @@ export function Decimal(min: number, max: number, errorMesage: string = null) {
         if (a == null) {
             return [true]
         }
-        if ((min != null && a.length < min) || (max != null && a.length > max)) {
+        let decimalPart = a.toString().split('.')[1] || ''
+        if ((min != null && decimalPart.length < min) || (max != null && decimalPart.length > max)) {
             return [false, errorMesage]
         }
         return [true]
