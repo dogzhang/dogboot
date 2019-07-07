@@ -1,6 +1,6 @@
 {
   "name": "dogboot",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "一款用于nodejs的web框架",
   "main": "bin/lib/DogBoot.js",
   "files": [
