@@ -29,3 +29,9 @@ test('use-default-path', async function () {
     expect(resp.status).toBe(200)
     expect(resp.text).toBe('ok')
 })
+
+test('area', async function () {
+    let resp = await request(server).get('/area/home/index')
+    expect(resp.status).toBe(200)
+    expect(resp.text).toBe('ok')
+})

@@ -1,0 +1,1 @@
+{"version":3,"file":"IllegalArgumentException.js","sourceRoot":"","sources":["../../src/lib/IllegalArgumentException.ts"],"names":[],"mappings":";;AAAA;;GAEG;AACH,MAAa,wBAAyB,SAAQ,KAAK;IAC/C,YAAY,OAAe,EAAE,UAAkB,EAAE,SAAiB;QAC9D,KAAK,CAAC,OAAO,CAAC,CAAA;QACd,IAAI,CAAC,UAAU,GAAG,UAAU,CAAA;QAC5B,IAAI,CAAC,SAAS,GAAG,SAAS,CAAA;IAC9B,CAAC;CAGJ;AARD,4DAQC"}

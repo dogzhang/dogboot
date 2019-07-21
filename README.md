@@ -40,10 +40,10 @@ package.json是npm的包管理清单文件。现在，请打开这个文件，�
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "dogboot": "^1.2.0"
+    "dogboot": "^1.3.0"
   },
   "devDependencies": {
-    "typescript": "^3.5.1"
+    "typescript": "^3.5.3"
   }
 }
 ```
@@ -74,9 +74,9 @@ tsconfig.json是TypeScript项目的可选配置文件，对于dogboot我们建�
 
 打开app.ts，输入以下内容
 ```typescript
-import { DogBootApplication } from "dogboot";
+import { createApp } from "dogboot";
 
-DogBootApplication.create().runAsync()
+createApp()
 ```
 打开HomeController.ts，输入以下内容
 ```typescript
@@ -110,9 +110,11 @@ Hello World
 当然你肯定不会满足于这个Hello World例子，那就请继续阅读我们的进阶文档吧
 # 更进一步
 ## DogBootApplication
-一个dogboot程序始于DogBootApplication类，dogboot会根据提供的配置选项扫描appRootPath目录下的文件夹。
+一个dogboot程序是一个DogBootApplication的实例，但是不能通过new DogBootApplication()来创建。
 
-默认会扫描controller、startup、filter这三个目录，如果需要修改为其他目录，请自行配置
+我们提供了createApp()来创建一个程序，比起new DogBootApplication()，这更加减少了使用者出错的可能性，并且便于我们后续扩展功能。
+
+dogboot会根据自动扫描项目文件，默认会扫描public、controller、startup、filter这些目录，如果需要修改为其他目录，请参考配置
 
 程序会自动判断当前的运行环境，如果是直接运行ts文件，会扫描src目录，如果是运行编译后的js文件，会扫描bin目录。
 
@@ -124,6 +126,7 @@ path参数也是可选的，如果不传，dogboot会指定这个类名的前面
 ## @StartUp
 使用@StartUp装饰器标记一个类为预启动组件，并且传入一个可选的order参数。dogboot程序在启动其他组件之前会先执行预启动组件的启动方法，使用order参数定制你希望的启动顺序。
 一个常规的预启动组件使用方式如下
+声明：
 ```typescript
 import { StartUp, Init } from "dogboot";
 
@@ -141,7 +144,7 @@ export class StartUp1 {
     }
 }
 ```
-在其他地方被调用
+使用：
 ```typescript
 import { Controller, GetMapping, BindQuery } from "dogboot";
 import { StartUp1 } from "../startup/StartUp1";
@@ -218,7 +221,7 @@ export class MyConfig {
     db: string
 }
 ```
-3、在其他地方被调用
+3、使用
 ```typescript
 import { Controller, GetMapping, BindQuery } from "dogboot";
 import { StartUp1 } from "../startup/StartUp1";
@@ -273,7 +276,7 @@ export class HomeService {
     }
 }
 ```
-2、在其他地方被调用
+2、使用
 ```typescript
 import { Controller, GetMapping, BindQuery } from "dogboot";
 import { StartUp1 } from "../startup/StartUp1";
@@ -294,7 +297,6 @@ export class HomeController {
 几乎与StartUp一样，区别只是使用了@Component来标记类，Component表示一般组件，这些组件仅仅具有依赖注入的功能，dogboot还包含很多特殊的组件，请阅读本文档了解更多
 ## @Init
 在组件中，使用@Init标记一个方法，此方法用于初始化组件，支持异步方法。
-
 ## @Autowired
 用于属性注入，用法如下
 ```typescript
@@ -349,7 +351,7 @@ export class ItemService {
 ```
 仔细看，使用了@Autowired(() => UserService)而不是@Autowired(UserService)
 
-使用@Autowired(UserService)会出现在ItemService中解析UserService时UserService为空或者在UserService中解析ItemService时ItemService的情况，这取决于两者的加载顺序。
+如果使用@Autowired(UserService)，则会出现在ItemService中解析UserService时UserService为空，或者在UserService中解析ItemService时ItemService为空的情况，这取决于两者的加载顺序。
 ## @Mapping
 用于将Controller内的方法映射为Action，需要传入method以及path参数。这两个参数不是必须的，默认会映射为get方法，并且使用方法名作为路由，为了方便书写，我们提前准备好了几种常用的method对应的Mapping。分别是@GetMapping、@PostMapping、@PutMapping、@PatchMapping、@DeleteMapping、@HeadMapping。如果你要映射所有的method，可以使用AllMapping。
 ## @BindContext
@@ -481,7 +483,7 @@ export class HomeController {
     }
 }
 ```
-我们加上了一个名字为updateName的action，并且映射为post方法，我们可以在postman测试这个接口
+我们加上了一个名字为updateName的action，并且映射为post方法，我们可以在postman（一款测试api的工具）测试这个接口
 
 post参数为
 ```json
@@ -501,7 +503,7 @@ postman测试工具收到的回复是
 ```
 Internal Server Error
 ```
-当然，正常的程序不应该这样任由错误出现而不处理，我们会在稍后介绍如何优雅的进行错误处理。
+当然，正常情况下不应该程序这样出错而不处理，我会在稍后介绍如何优雅的进行错误处理。
 ## @UseExceptionFilter
 使用@UseExceptionFilter标记一个Controller或者Action使用指定的异常过滤器。
 
@@ -511,10 +513,10 @@ Internal Server Error
 
 1、创建一个ExceptionFilter组件，内容如下
 ```typescript
-import { FreeExceptionFilter, ExceptionHandler } from "dogboot";
+import { ExceptionFilter, ExceptionHandler } from "dogboot";
 
-@FreeExceptionFilter
-export class MyFreeExceptionFilter {
+@ExceptionFilter
+export class MyExceptionFilter {
     @ExceptionHandler(Error)
     async handleError(error: Error, ctx: any) {
         error.stack && console.log(error.stack)
@@ -529,11 +531,11 @@ import { StartUp1 } from "../startup/StartUp1";
 import { MyConfig } from "../MyConfig";
 import { HomeService } from "../service/HomeService";
 import { UpdateNameIM } from "../model/home/UpdateNameIM";
-import { MyFreeExceptionFilter } from "../filter/MyFreeExceptionFilter";
+import { MyExceptionFilter } from "../filter/MyExceptionFilter";
 
 @Controller('/home')
 //放在这里对此Controller下所有Action生效
-@UseExceptionFilter(MyFreeExceptionFilter)
+@UseExceptionFilter(MyExceptionFilter)
 export class HomeController {
     constructor(private readonly startUp1: StartUp1, private readonly myConfig: MyConfig, private readonly homeService: HomeService) { }
 
@@ -556,7 +558,7 @@ import { StartUp1 } from "../startup/StartUp1";
 import { MyConfig } from "../MyConfig";
 import { HomeService } from "../service/HomeService";
 import { UpdateNameIM } from "../model/home/UpdateNameIM";
-import { MyFreeExceptionFilter } from "../filter/MyFreeExceptionFilter";
+import { MyExceptionFilter } from "../filter/MyExceptionFilter";
 
 @Controller('/home')
 export class HomeController {
@@ -569,7 +571,7 @@ export class HomeController {
     }
 
     //放在这里仅对此Action生效
-    @UseExceptionFilter(MyFreeExceptionFilter)
+    @UseExceptionFilter(MyExceptionFilter)
     @PostMapping('/updateName')
     async updateName(@BindBody im: UpdateNameIM) {
         return im
@@ -585,20 +587,23 @@ export class HomeController {
 ```
 这样，就实现了一个异常过滤器
 
-这是使用自由过滤器的例子，事实上，更多时候，只需要把过滤器放在filter目录即可被自动扫描到，并且全局有效，参考@ExceptionFilter
+这是使用局部过滤器的例子，事实上，更多时候，只需要把过滤器放在filter目录即可被自动扫描到，并且全局有效，参考@GlobalExceptionFilter
+## @GlobalExceptionFilter
+上面介绍了@UseExceptionFilter，但是这种方式需要在每一个使用的地方手动添加，在业务代码比较多的时候会变得十分繁琐，实际业务中更加推荐使用@GlobalExceptionFilter。
+只需要将你的过滤器打上标记@GlobalExceptionFilter，并且位于filter目录内，就可以被dogboot自动扫描到，并且全局有效
 ## @UseActionFilter
 使用@UseActionFilter标记一个Controller或者Action使用指定的Action过滤器。
 
-FreeActionFilter在权限处理时非常有用，设置了FreeActionFilter的Action在执行前后会执行FreeActionFilter内的@DoBefore、@DoAfter方法。
+ActionFilter在权限处理时非常有用，设置了ActionFilter的Action在执行前后会执行ActionFilter内的@DoBefore、@DoAfter方法。
 
 举个例子，我们要在每一个接口请求判断用户的身份信息，如果身份信息不存在或者不合法，就不允许继续执行Action。
 
 1、创建一个ActionFilter，内容如下
 ```typescript
-import { FreeActionFilter, DoBefore, ActionFilterContext } from "dogboot";
+import { ActionFilter, DoBefore, ActionFilterContext } from "dogboot";
 
-@FreeActionFilter
-export class MyFreeActionFilter {
+@ActionFilter
+export class MyActionFilter {
     @DoBefore
     doBefore(actionFilterContext: ActionFilterContext) {
         let ticket = actionFilterContext.ctx.get('ticket')
@@ -616,13 +621,13 @@ import { StartUp1 } from "../startup/StartUp1";
 import { MyConfig } from "../MyConfig";
 import { HomeService } from "../service/HomeService";
 import { UpdateNameIM } from "../model/home/UpdateNameIM";
-import { MyFreeExceptionFilter } from "../filter/MyFreeExceptionFilter";
-import { MyFreeActionFilter } from "../filter/MyFreeActionFilter";
+import { MyExceptionFilter } from "../filter/MyExceptionFilter";
+import { MyActionFilter } from "../filter/MyActionFilter";
 
 @Controller('/home')
 //放在这里对此Controller下所有Action生效
-@UseExceptionFilter(MyFreeExceptionFilter)
-@UseActionFilter(MyFreeActionFilter)
+@UseExceptionFilter(MyExceptionFilter)
+@UseActionFilter(MyActionFilter)
 export class HomeController {
     constructor(private readonly startUp1: StartUp1, private readonly myConfig: MyConfig, private readonly homeService: HomeService) { }
 
@@ -645,9 +650,9 @@ export class HomeController {
     "message": "Unauthorized"
 }
 ```
-这样，就实现了一个FreeActionFilter，此例子仅用于介绍UseExceptionFilter用法，实际生产中不建议使用这样简单的处理。
+这样，就实现了一个ActionFilter，此例子仅用于介绍UseActionFilter用法，实际生产中不建议使用这样简单的处理。
 
-与UseExceptionFilter一样，UseActionFilter也可用于Action，或者使用DogBootApplication.useActionFilter(MyActionFilter)全局添加。
+与UseExceptionFilter一样，UseActionFilter也可用于Action，也可以使用@GlobalActionFilter，使过滤器全局生效。
 
 ⚠️注意，不要在过滤器中保存请求上下文信息，因为dogboot所有的组件都是单例的。
 
@@ -663,5 +668,39 @@ index(@BindContext ctx:any){
     let userName = ctx.state.userName
 }
 ```
-# 凡人止步
-dogzhang欲言又止……
+## @GlobalActionFilter
+与@GlobalExceptionFilter，是ActionFilter的全局版本
+# 高级用法
+## dogboot的配置
+到目前为止，我还没有介绍怎样让我们的程序监听不同的端口，毕竟你不可能总是使用3000端口，是的，这需要配置
+
+最简单的配置是createApp(port: number)，这样可以指定端口。
+
+稍微复杂一点的是createApp({port: number, entry: string})，多了一个entry参数。entry是程序的启动文件路径，这个参数很重要，因为它涉及到dogboot的自动扫描。大部分情况下，不需要特别设置这个参数，dogboot会默认使用process.mainModule.filename，但是在你使用pm2等守护进程管理软件的时候，process.mainModule.filename可能就不是app.js了，这时候就需要指定一下entry了，一般只需要createApp(port: 3000, entry: __filename)就可以了。
+
+如果将所有配置都通过程序来传递，会显得很臃肿，并且不利于区分测试环境与生产环境，所以我们将更多的配置定向到配置文件。
+
+dogboot会尝试从config.json的app节中获取配置，如果配置没有找到，会使用dogboot内置的预设配置。全部配置如下
+名称 | 类型 | 默认值 | 说明  
+-|-|-|-|
+port | number | 3000 | 优先从createApp(port: number)获取参数 |
+prefix | string | undefined | 路由前缀，比如赋值为/api，那么所有的路由前面需要加上/api，/home/index + /api = /api/home/index |
+staticRootPathName | string | public | 静态资源的根目录 |
+controllerRootPathName | string | controller | 控制器的根目录 |
+startupRootPathName | string | startup | 启动器的根目录 |
+filterRootPathName | string | filter | 过滤器的根目录 |
+enableApidoc | boolean | false | 是否开启api文档，此功能还没有实现 |
+enableCors | boolean | false | 是否开启跨域 |
+corsOptions | CorsOptions | new CorsOptions() | 跨域选项，参考下面的CorsOptions |
+enableHotload | boolean | false | 是否开启热更新，dogboot独特的、强大的热更新功能，还在实验阶段，请勿在生产环境开启 |
+hotloadDebounceInterval | number | 1000 | hotloadDebounceInterval毫秒后没有文件更新就开启重新载入程序 |
+CorsOptions，具体说明请参考[koa2-cors](https://github.com/zadzbw/koa2-cors)
+名称 | 类型 | 默认值 | 说明  
+-|-|-|-|
+origin | string | undefined |  |
+exposeHeaders | string[] | undefined |  |
+maxAge | number | undefined |  |
+credentials | boolean | undefined |  |
+allowMethods | string[] | undefined |  |
+allowHeaders | string[] | undefined |  |
+dogboot会智能的合并你在config.json提供的配置，只有你配置了的字段，dogboot才会使用你的，否则，使用dogboot对于该字段预设的值

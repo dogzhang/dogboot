@@ -3,7 +3,7 @@ import { GlobalExceptionFilter, ExceptionHandler } from "../../../../bin/lib/Dog
 @GlobalExceptionFilter
 export class MyGlobalExceptionFilter {
     @ExceptionHandler(Error)
-    async handleError(error: Error, ctx: any) {
+    async handleError(ctx: any, error: Error) {
         ctx.body = error.message
     }
 }

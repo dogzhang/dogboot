@@ -4,12 +4,12 @@ import { UnAuthorizedException } from "./MyActionFilter";
 @ExceptionFilter
 export class MyExceptionFilter {
     @ExceptionHandler(UnAuthorizedException)
-    async handleUnAuthorizedException(error: UnAuthorizedException, ctx: any) {
+    async handleUnAuthorizedException(ctx: any) {
         ctx.throw(401)
     }
 
     @ExceptionHandler(Error)
-    async handleError(error: Error, ctx: any) {
+    async handleError(ctx: any, error: Error) {
         ctx.body = 'ExceptionFilter-' + error.message
     }
 }
