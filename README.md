@@ -681,26 +681,30 @@ index(@BindContext ctx:any){
 如果将所有配置都通过程序来传递，会显得很臃肿，并且不利于区分测试环境与生产环境，所以我们将更多的配置定向到配置文件。
 
 dogboot会尝试从config.json的app节中获取配置，如果配置没有找到，会使用dogboot内置的预设配置。全部配置如下
-| 名称 | 类型 | 默认值 | 说明 |
-|-|-|-|-|
-| port | number | 3000 | 优先从createApp(port: number)获取参数 |
-| prefix | string | undefined | 路由前缀，比如赋值为/api，那么所有的路由前面需要加上/api，/home/index + /api = /api/home/index |
-| staticRootPathName | string | public | 静态资源的根目录 |
-| controllerRootPathName | string | controller | 控制器的根目录 |
-| startupRootPathName | string | startup | 启动器的根目录 |
-| filterRootPathName | string | filter | 过滤器的根目录 |
-| enableApidoc | boolean | false | 是否开启api文档，此功能还没有实现 |
-| enableCors | boolean | false | 是否开启跨域 |
-| corsOptions | CorsOptions | new CorsOptions() | 跨域选项，参考下面的CorsOptions |
-| enableHotload | boolean | false | 是否开启热更新，dogboot独特的、强大的热更新功能，还在实验阶段，请勿在生产环境开启 |
-| hotloadDebounceInterval | number | 1000 | hotloadDebounceInterval毫秒后没有文件更新就开启重新载入程序 |
+
+名称 | 类型 | 默认值 | 说明
+------------ | ------------- | ------------- | -------------
+port | number | 3000 | 优先从createApp(port: number)获取参数
+prefix | string | undefined | 路由前缀，比如赋值为/api，那么所有的路由前面需要加上/api，/home/index + /api = /api/home/index
+staticRootPathName | string | public | 静态资源的根目录
+controllerRootPathName | string | controller | 控制器的根目录
+startupRootPathName | string | startup | 启动器的根目录
+filterRootPathName | string | filter | 过滤器的根目录
+enableApidoc | boolean | false | 是否开启api文档，此功能还没有实现
+enableCors | boolean | false | 是否开启跨域
+corsOptions | CorsOptions | new CorsOptions() | 跨域选项，参考下面的CorsOptions
+enableHotload | boolean | false | 是否开启热更新，dogboot独特的、强大的热更新功能，还在实验阶段，请勿在生产环境开启
+hotloadDebounceInterval | number | 1000 | hotloadDebounceInterval毫秒后没有文件更新就开启重新载入程序
+
 CorsOptions，具体说明请参考[koa2-cors](https://github.com/zadzbw/koa2-cors)
-| 名称 | 类型 | 默认值 | 说明 |
-|-|-|-|-|
-| origin | string | undefined |  |
-| exposeHeaders | string[] | undefined |  |
-| maxAge | number | undefined |  |
-| credentials | boolean | undefined |  |
-| allowMethods | string[] | undefined |  |
-| allowHeaders | string[] | undefined |  |
+
+名称 | 类型 | 默认值 | 说明
+------------ | ------------- | ------------- | -------------
+origin | string | undefined
+exposeHeaders | string[] | undefined
+maxAge | number | undefined
+credentials | boolean | undefined
+allowMethods | string[] | undefined
+allowHeaders | string[] | undefined
+
 dogboot会智能的合并你在config.json提供的配置，只有你配置了的字段，dogboot才会使用你的，否则，使用dogboot对于该字段预设的值
