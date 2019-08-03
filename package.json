@@ -2,9 +2,9 @@
   "name": "dogboot",
   "version": "1.3.0",
   "description": "一款用于nodejs的web框架",
-  "main": "bin/lib/DogBoot.js",
+  "main": "bin/index.js",
   "files": [
-    "bin/lib"
+    "bin"
   ],
   "scripts": {
     "tsc": "tsc -w",

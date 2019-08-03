@@ -1,5 +1,5 @@
 import Koa = require('koa');
-import { Controller, GetMapping, BindQuery, BindPath, PostMapping, BindBody, BindContext, BindRequest, BindResponse } from "../../../../bin/lib/DogBoot";
+import { Controller, GetMapping, BindQuery, BindPath, PostMapping, BindBody, BindContext, BindRequest, BindResponse } from "../../../../bin/index";
 
 @Controller()
 export class HomeController {

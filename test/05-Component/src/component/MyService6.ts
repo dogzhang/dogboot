@@ -1,4 +1,4 @@
-import { Component, Init } from "../../../../bin/lib/DogBoot";
+import { Component, Init } from "../../../../bin/index";
 
 @Component
 export class MyService6 {

@@ -1,4 +1,4 @@
-import { GlobalActionFilter, DoBefore, ActionFilterContext } from "../../../../bin/lib/DogBoot";
+import { GlobalActionFilter, DoBefore, ActionFilterContext } from "../../../../bin/index";
 
 @GlobalActionFilter()
 export class MyGlobalActionFilter {

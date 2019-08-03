@@ -1,4 +1,4 @@
-import { createApp } from "../../../bin/lib/DogBoot";
+import { createApp } from "../../../bin/index";
 import path = require('path');
 
 let port = 3000 + Number.parseInt(path.basename(path.resolve(__dirname, '..')).match(/^\d+/)[0])

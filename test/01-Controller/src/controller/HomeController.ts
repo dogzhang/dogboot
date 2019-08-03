@@ -1,4 +1,4 @@
-import { Controller, GetMapping } from "../../../../bin/lib/DogBoot";
+import { Controller, GetMapping } from "../../../../bin/index";
 
 @Controller('/home')
 export class HomeController {

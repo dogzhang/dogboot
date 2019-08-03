@@ -1,4 +1,4 @@
-import { ExceptionHandler, ExceptionFilter } from "../../../../bin/lib/DogBoot";
+import { ExceptionHandler, ExceptionFilter } from "../../../../bin/index";
 import { UnAuthorizedException } from "./MyActionFilter";
 
 @ExceptionFilter

@@ -1,4 +1,4 @@
-import { Typed, Func } from "../../../../../bin/lib/DogBoot";
+import { Typed, Func } from "../../../../../bin/index";
 
 export class Index14IM {
     @Func((a: string) => {

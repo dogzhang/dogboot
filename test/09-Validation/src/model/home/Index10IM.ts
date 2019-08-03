@@ -1,4 +1,4 @@
-import { Typed, Decimal } from "../../../../../bin/lib/DogBoot";
+import { Typed, Decimal } from "../../../../../bin/index";
 
 export class Index10IM {
     @Decimal(2, 4)

@@ -1,4 +1,4 @@
-import { Controller, GetMapping, Config, Typed, TypedArray } from "../../../../bin/lib/DogBoot";
+import { Controller, GetMapping, Config, Typed, TypedArray } from "../../../../bin/index";
 
 @Config()
 class MyConfig {

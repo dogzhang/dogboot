@@ -1,4 +1,4 @@
-import { Typed, Range } from "../../../../../bin/lib/DogBoot";
+import { Typed, Range } from "../../../../../bin/index";
 
 export class Index7IM {
     @Range(2, 4)

@@ -1,4 +1,4 @@
-import { Controller, GetMapping } from "../../../../bin/lib/DogBoot";
+import { Controller, GetMapping } from "../../../../bin/index";
 import { MyStartUp } from "../startup/MyStartUp";
 import { MyStartUp1 } from "../startup/MyStartUp1";
 import { MyStartUp2 } from "../startup/MyStartUp2";

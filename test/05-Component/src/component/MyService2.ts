@@ -1,4 +1,4 @@
-import { Component } from "../../../../bin/lib/DogBoot";
+import { Component } from "../../../../bin/index";
 import { MyService3 } from "./MyService3";
 
 @Component

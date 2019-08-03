@@ -1,4 +1,4 @@
-import { Controller, GetMapping, PostMapping, PutMapping, PatchMapping, DeleteMapping, HeadMapping, AllMapping, Mapping } from "../../../../bin/lib/DogBoot";
+import { Controller, GetMapping, PostMapping, PutMapping, PatchMapping, DeleteMapping, HeadMapping, AllMapping, Mapping } from "../../../../bin/index";
 
 @Controller('/home')
 export class HomeController {

@@ -1,4 +1,4 @@
-import { Controller, GetMapping, UseExceptionFilter, UseActionFilter } from "../../../../bin/lib/DogBoot";
+import { Controller, GetMapping, UseExceptionFilter, UseActionFilter } from "../../../../bin/index";
 import { MyExceptionFilter } from "../filter/MyExceptionFilter";
 import { MyActionFilter } from "../filter/MyActionFilter";
 

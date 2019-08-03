@@ -1,4 +1,4 @@
-import { GlobalExceptionFilter, ExceptionHandler } from "../../../../bin/lib/DogBoot";
+import { GlobalExceptionFilter, ExceptionHandler } from "../../../../bin/index";
 
 @GlobalExceptionFilter
 export class MyGlobalExceptionFilter {

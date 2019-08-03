@@ -1,4 +1,4 @@
-import { Typed, MaxLength } from "../../../../../bin/lib/DogBoot";
+import { Typed, MaxLength } from "../../../../../bin/index";
 
 export class Index6IM {
     @MaxLength(4)

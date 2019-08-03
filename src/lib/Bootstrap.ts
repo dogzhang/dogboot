@@ -1,5 +1,5 @@
-import { DIContainer } from "./DIContainer";
-import { DogBootApplication } from "./DogBootApplication";
+import { DIContainer } from "./core/DIContainer";
+import { DogBootApplication } from "./web/DogBootApplication";
 import { CreateAppOptions } from "./CreateAppOptions";
 
 /**

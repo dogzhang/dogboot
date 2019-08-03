@@ -1,4 +1,4 @@
-import { Typed, NotBlank } from "../../../../../bin/lib/DogBoot";
+import { Typed, NotBlank } from "../../../../../bin/index";
 
 export class Index3IM {
     @NotBlank()

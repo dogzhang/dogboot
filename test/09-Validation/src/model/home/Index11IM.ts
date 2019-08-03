@@ -1,4 +1,4 @@
-import { Typed, MinDecimal } from "../../../../../bin/lib/DogBoot";
+import { Typed, MinDecimal } from "../../../../../bin/index";
 
 export class Index11IM {
     @MinDecimal(2)

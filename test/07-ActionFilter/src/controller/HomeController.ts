@@ -1,4 +1,4 @@
-import { Controller, GetMapping, UseActionFilter } from "../../../../bin/lib/DogBoot";
+import { Controller, GetMapping, UseActionFilter } from "../../../../bin/index";
 import { MyActionFilter } from "../filter/MyActionFilter";
 
 @Controller()

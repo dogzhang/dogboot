@@ -1,4 +1,4 @@
-import { DoBefore, ActionFilterContext, ActionFilter } from "../../../../bin/lib/DogBoot";
+import { DoBefore, ActionFilterContext, ActionFilter } from "../../../../bin/index";
 
 @ActionFilter
 export class MyActionFilter {

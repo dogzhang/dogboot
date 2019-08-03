@@ -1,4 +1,4 @@
-import { Component, Autowired } from "../../../../bin/lib/DogBoot";
+import { Component, Autowired } from "../../../../bin/index";
 import { MyService5 } from "./MyService5";
 
 @Component

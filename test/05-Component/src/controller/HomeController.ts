@@ -1,4 +1,4 @@
-import { Controller, GetMapping } from "../../../../bin/lib/DogBoot";
+import { Controller, GetMapping } from "../../../../bin/index";
 import { MyService1 } from "../component/MyService1";
 import { MyService4 } from "../component/MyService4";
 import { MyService2 } from "../component/MyService2";

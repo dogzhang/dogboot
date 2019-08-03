@@ -1,4 +1,4 @@
-import { StartUp } from "../../../../bin/lib/DogBoot";
+import { StartUp } from "../../../../bin/index";
 
 @StartUp()
 export class MyStartUp {

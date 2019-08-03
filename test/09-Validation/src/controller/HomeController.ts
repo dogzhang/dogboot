@@ -1,4 +1,4 @@
-import { Controller, GetMapping, PostMapping, BindBody } from "../../../../bin/lib/DogBoot";
+import { Controller, GetMapping, PostMapping, BindBody } from "../../../../bin/index";
 import { Index1IM } from "../model/home/Index1IM";
 import { Index2IM } from "../model/home/Index2IM";
 import { Index3IM } from "../model/home/Index3IM";

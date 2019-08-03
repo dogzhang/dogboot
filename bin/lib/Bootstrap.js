@@ -8,8 +8,8 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-const DIContainer_1 = require("./DIContainer");
-const DogBootApplication_1 = require("./DogBootApplication");
+const DIContainer_1 = require("./core/DIContainer");
+const DogBootApplication_1 = require("./web/DogBootApplication");
 /**
  * DogBoot创建应用的唯一入口
  */

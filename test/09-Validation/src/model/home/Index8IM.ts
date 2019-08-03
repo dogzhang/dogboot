@@ -1,4 +1,4 @@
-import { Typed, Min } from "../../../../../bin/lib/DogBoot";
+import { Typed, Min } from "../../../../../bin/index";
 
 export class Index8IM {
     @Min(2)
