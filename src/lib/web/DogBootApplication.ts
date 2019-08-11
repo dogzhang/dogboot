@@ -7,7 +7,7 @@ import koaStatic = require('koa-static');
 import cors = require('koa2-cors')
 import { Server } from 'http';
 import http = require('http');
-import { Component, Init, DoBefore, DoAfter } from '../core/Component';
+import { DoBefore, DoAfter } from '../core/Component';
 import { Utils } from '../core/Utils';
 import { DogUtils } from '../core/DogUtils';
 import { DIContainer } from '../core/DIContainer';
@@ -17,7 +17,6 @@ import { LazyResult } from './LazyResult';
 import { APIDocController } from './APIDocController';
 import { NotFoundException } from './NotFoundException';
 
-@Component
 export class DogBootApplication {
     app = new Koa()
     server: Server
@@ -28,23 +27,16 @@ export class DogBootApplication {
     private globalExceptionFilter: new (...args: any[]) => {}
     private globalActionFilters: (new (...args: any[]) => {})[]
     private requestHandler: Function
+    private opts: DogBootOptions
+    private container: DIContainer
 
-    constructor(private readonly opts: DogBootOptions, private readonly container: DIContainer) {
+    constructor() {
+        this.opts = Utils.getConfigValue(DogBootOptions)[0]
+
+        this.container = new DIContainer()
         this.container.on('reload', () => {
-            this.container.setComponentInstance(DogBootApplication, this)
-            this.init()
+            this.reload()
         })
-    }
-
-    @Init
-    private async init() {
-        this.readyToAcceptRequest = false
-        this.globalExceptionFilter = null
-        this.globalActionFilters = []
-        this.requestHandler = null
-        this.controllerClasses = []
-
-        await this.runAsync()
     }
 
     private build() {
@@ -263,10 +255,28 @@ export class DogBootApplication {
     }
 
     /**
+     * 主动热更新程序
+     */
+    reload() {
+        this.container.clear()
+        return this.runAsync()
+    }
+
+    /**
      * 异步启动程序，程序完全启动后才会返回
      */
-    private async runAsync() {
+    async runAsync() {
         let startTime = Date.now()
+
+        this.readyToAcceptRequest = false
+        this.globalExceptionFilter = null
+        this.globalActionFilters = []
+        this.requestHandler = null
+        this.controllerClasses = []
+
+        this.container.setComponentInstance(DogBootApplication, this)
+        this.container.setComponentInstance(DIContainer, this.container)
+
         this.app.middleware = []
         this.build()
         this.buildApidoc()
@@ -274,8 +284,8 @@ export class DogBootApplication {
         this.requestHandler = this.app.callback()
 
         let port = this.opts.port
-        if (process.env.dogbootPort) {
-            port = Number.parseInt(process.env.dogbootPort)
+        if (process.env.dogPort) {
+            port = Number.parseInt(process.env.dogPort)
         }
 
         let lastServer = this.server
@@ -291,5 +301,55 @@ export class DogBootApplication {
         this.readyToAcceptRequest = true
         let endTime = Date.now()
         console.log(`Your application has ${lastServer ? 'reloaded' : 'started'} at ${port} in ${endTime - startTime}ms`)
+
+        await this.test()
+
+        return this
+    }
+
+    private async test() {
+        if (!this.opts.enableTest) {
+            return
+        }
+
+        console.log('Running tests...')
+        let startTime = Date.now()
+
+        let testRootPath = path.join(Utils.getExecRootPath(), this.opts.testRootPathName)
+        let testFileList = Utils.getFileListInFolder(testRootPath)
+        let testClassList: (new (...args: any[]) => {})[] = []
+        for (let testFile of testFileList) {
+            try {
+                let _Module = require(testFile)
+                Object.values(_Module).filter(b => b instanceof Function && b.prototype.$isTest)
+                    .forEach((b: new (...args: any[]) => {}) => {
+                        testClassList.push(b)
+                    })
+            } catch (error) { }
+        }
+
+        let passed = 0
+        let faild = 0
+        let total = 0
+        for (let _Class of testClassList) {
+            let _prototype = _Class.prototype
+            let testInstance = await this.container.getComponentInstanceFromFactory(_Class)
+            for (let testMethod of _prototype.$testMethods) {
+                try {
+                    await testInstance[testMethod]()
+                    passed += 1
+                } catch (error) {
+                    console.error(`Test faild at ${_Class.name}.${testMethod}`)
+                    console.trace(error.stack)
+                    faild += 1
+                } finally {
+                    total += 1
+                }
+            }
+        }
+
+        let endTime = Date.now()
+        console.log(`All tests ran in ${endTime - startTime}ms`)
+        console.table([{ passed, faild, total }])
     }
 }

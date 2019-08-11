@@ -1,4 +1,3 @@
-import { DIContainer } from "./core/DIContainer";
 import { DogBootApplication } from "./web/DogBootApplication";
 import { CreateAppOptions } from "./CreateAppOptions";
 
@@ -18,12 +17,10 @@ export async function createApp(opts?: number | CreateAppOptions) {
     }
 
     if (_opts.port != null) {
-        process.env.dogbootPort = _opts.port.toString()
+        process.env.dogPort = _opts.port.toString()
     }
     if (_opts.entry != null) {
-        process.env.dogbootEntry = _opts.entry
+        process.env.dogEntry = _opts.entry
     }
-    let container = new DIContainer()
-    await container.init()
-    return container.getComponentInstanceFromFactory(DogBootApplication)
+    return new DogBootApplication().runAsync()
 }

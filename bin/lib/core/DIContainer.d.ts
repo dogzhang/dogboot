@@ -6,12 +6,12 @@ export declare class DIContainer extends EventEmitter {
     private watcher;
     private opts;
     private configPathSet;
+    constructor();
     on<K extends 'reload', T extends {
         'reload': () => void;
     }>(event: K, listener: T[K]): this;
-    init(): Promise<void>;
     private watch;
-    private reload;
+    clear(): void;
     /**
      * 将已经实例化好的对象添加进容器
      * @param target 类型

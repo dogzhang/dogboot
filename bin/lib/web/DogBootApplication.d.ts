@@ -1,11 +1,7 @@
 /// <reference types="node" />
 import Koa = require('koa');
 import { Server } from 'http';
-import { DIContainer } from '../core/DIContainer';
-import { DogBootOptions } from './DogBootOptions';
 export declare class DogBootApplication {
-    private readonly opts;
-    private readonly container;
     app: Koa<any, {}>;
     server: Server;
     controllerClasses: (new (...args: any[]) => {})[];
@@ -13,8 +9,9 @@ export declare class DogBootApplication {
     private globalExceptionFilter;
     private globalActionFilters;
     private requestHandler;
-    constructor(opts: DogBootOptions, container: DIContainer);
-    private init;
+    private opts;
+    private container;
+    constructor();
     private build;
     private checkControllerClass;
     private checkAndHandleActionName;
@@ -27,7 +24,12 @@ export declare class DogBootApplication {
     private buildApidoc;
     private useNotFoundExceptionHandler;
     /**
+     * 主动热更新程序
+     */
+    reload(): Promise<this>;
+    /**
      * 异步启动程序，程序完全启动后才会返回
      */
-    private runAsync;
+    runAsync(): Promise<this>;
+    private test;
 }

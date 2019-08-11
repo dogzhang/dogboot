@@ -1,7 +1,6 @@
 import chokidar = require('chokidar');
 import { EventEmitter } from 'events';
 import { Utils } from './Utils';
-import { DogUtils } from './DogUtils';
 import { DIContainerOptions } from './DIContainerOptions';
 
 export class DIContainer extends EventEmitter {
@@ -11,18 +10,18 @@ export class DIContainer extends EventEmitter {
     private opts: DIContainerOptions
     private configPathSet: Set<string> = new Set()
 
+    constructor() {
+        super()
+        this.opts = Utils.getConfigValue(DIContainerOptions)[0]
+        if (this.opts.enableHotload == true) {
+            this.watch()
+        }
+    }
+
     on<K extends 'reload', T extends {
         'reload': () => void
     }>(event: K, listener: T[K]): this {
         return super.on(event, listener)
-    }
-
-    async init() {
-        this.componentInstanceMap.set(DIContainer, this)
-        this.opts = await this.getComponentInstanceFromFactory(DIContainerOptions)
-        if (this.opts.enableHotload == true) {
-            this.watch()
-        }
     }
 
     private async watch() {
@@ -35,12 +34,12 @@ export class DIContainer extends EventEmitter {
         this.watcher.on('all', () => {
             clearTimeout(st)
             st = setTimeout(() => {
-                this.reload()
+                this.emit('reload')
             }, this.opts.hotloadDebounceInterval)
         })
     }
 
-    private reload() {
+    clear() {
         Utils.getFileListInFolder(Utils.getExecRootPath()).forEach(a => {
             if (require.cache[a]) {
                 delete require.cache[a]
@@ -51,7 +50,6 @@ export class DIContainer extends EventEmitter {
         })
         this.configPathSet.clear()
         this.componentInstanceMap.clear()
-        this.emit('reload')
     }
 
     /**
@@ -153,27 +151,12 @@ export class DIContainer extends EventEmitter {
     }
 
     private getConfigValue<T>(target: new (...args: any[]) => T): T {
-        let configName = target.prototype.$configName
-        let configFilePath = Utils.getConfigFilename(configName)
-        let originalVal = null
-        try {
-            originalVal = require(configFilePath)
-            this.addConfigFilePath(configFilePath)
-        } catch{ }
-        let sectionArr = target.prototype.$configField.split('.').filter((a: any) => a)
-        for (let a of sectionArr) {
-            if (originalVal == null) {
-                break
-            }
-            originalVal = originalVal[a]
-        }
-        return DogUtils.getTypeSpecifiedValue(target, originalVal, new target())
+        let [val, configFilePath] = Utils.getConfigValue(target)
+        this.addConfigFilePath(configFilePath)
+        return val
     }
 
     private addConfigFilePath(configFilePath: string) {
-        if (!this.opts) {
-            return
-        }
         if (!this.opts.enableHotload) {
             return
         }

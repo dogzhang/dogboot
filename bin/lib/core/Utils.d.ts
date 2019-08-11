@@ -11,7 +11,7 @@ export declare class Utils {
      * 获取指定目录下js或者ts文件列表
      * @param dirPath 指定的目录
      */
-    static getFileListInFolder(dirPath: string): any[];
+    static getFileListInFolder(dirPath: string): string[];
     private static getValidator;
     /**
      * 验证模型是否合法，第一个不合法的字段会导致此方法抛出异常IllegalArgumentException
@@ -23,4 +23,9 @@ export declare class Utils {
     static getAppRootPath(): string;
     static getExecRootPath(): string;
     static getConfigFilename(configName: string): string;
+    /**
+     * 获取配置值
+     * @param target 配置类型
+     */
+    static getConfigValue<T>(target: new (...args: any[]) => T): [T, string];
 }

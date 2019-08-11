@@ -6,6 +6,8 @@ export declare class DogBootOptions {
     controllerRootPathName?: string;
     startupRootPathName?: string;
     filterRootPathName?: string;
+    enableTest?: boolean;
+    testRootPathName?: string;
     enableApidoc?: boolean;
     /**
      * 是否允许跨域

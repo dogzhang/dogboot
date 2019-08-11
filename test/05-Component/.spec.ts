@@ -60,3 +60,15 @@ test('Init-exed-after-constructor', async function () {
     expect(resp.status).toBe(200)
     expect(resp.text).toBe('ok')
 })
+
+test('DogBootApplication-can-be-get-from-DI', async function () {
+    let resp = await request(server).get('/home8/index')
+    expect(resp.status).toBe(200)
+    expect(resp.text).toBe('DogBootApplication')
+})
+
+test('DIContainer-can-be-get-from-DI', async function () {
+    let resp = await request(server).get('/home9/index')
+    expect(resp.status).toBe(200)
+    expect(resp.text).toBe('DIContainer')
+})

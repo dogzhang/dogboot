@@ -8,7 +8,6 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-const DIContainer_1 = require("./core/DIContainer");
 const DogBootApplication_1 = require("./web/DogBootApplication");
 /**
  * DogBoot创建应用的唯一入口
@@ -27,14 +26,12 @@ function createApp(opts) {
             }
         }
         if (_opts.port != null) {
-            process.env.dogbootPort = _opts.port.toString();
+            process.env.dogPort = _opts.port.toString();
         }
         if (_opts.entry != null) {
-            process.env.dogbootEntry = _opts.entry;
+            process.env.dogEntry = _opts.entry;
         }
-        let container = new DIContainer_1.DIContainer();
-        yield container.init();
-        return container.getComponentInstanceFromFactory(DogBootApplication_1.DogBootApplication);
+        return new DogBootApplication_1.DogBootApplication().runAsync();
     });
 }
 exports.createApp = createApp;

@@ -19,6 +19,8 @@ let DogBootOptions = class DogBootOptions {
         this.controllerRootPathName = 'controller';
         this.startupRootPathName = 'startup';
         this.filterRootPathName = 'filter';
+        this.enableTest = false;
+        this.testRootPathName = 'test';
         this.enableApidoc = false;
         /**
          * 是否允许跨域
@@ -54,6 +56,14 @@ __decorate([
     TypeConvert_1.Typed(),
     __metadata("design:type", String)
 ], DogBootOptions.prototype, "filterRootPathName", void 0);
+__decorate([
+    TypeConvert_1.Typed(),
+    __metadata("design:type", Boolean)
+], DogBootOptions.prototype, "enableTest", void 0);
+__decorate([
+    TypeConvert_1.Typed(),
+    __metadata("design:type", String)
+], DogBootOptions.prototype, "testRootPathName", void 0);
 __decorate([
     TypeConvert_1.Typed(),
     __metadata("design:type", Boolean)

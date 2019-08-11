@@ -23,6 +23,12 @@ export class DogBootOptions {
     filterRootPathName?: string = 'filter'
 
     @Typed()
+    enableTest?: boolean = false
+
+    @Typed()
+    testRootPathName?: string = 'test'
+
+    @Typed()
     enableApidoc?: boolean = false
 
     /**

@@ -17,10 +17,12 @@ test('NotNull', async function () {
     {
         let resp = await request(server).post('/home/index1')
         expect(resp.status).toBe(500)
+        expect(resp.text).toBe('IllegalArgumentException')
     }
     {
         let resp = await request(server).post('/home/index1').send({ a: null })
         expect(resp.status).toBe(500)
+        expect(resp.text).toBe('IllegalArgumentException')
     }
     {
         let resp = await request(server).post('/home/index1').send({ a: 1 })
@@ -33,14 +35,17 @@ test('NotEmpty', async function () {
     {
         let resp = await request(server).post('/home/index2')
         expect(resp.status).toBe(500)
+        expect(resp.text).toBe('IllegalArgumentException')
     }
     {
         let resp = await request(server).post('/home/index2').send({ a: null })
         expect(resp.status).toBe(500)
+        expect(resp.text).toBe('IllegalArgumentException')
     }
     {
         let resp = await request(server).post('/home/index2').send({ a: '' })
         expect(resp.status).toBe(500)
+        expect(resp.text).toBe('IllegalArgumentException')
     }
     {
         let resp = await request(server).post('/home/index2').send({ a: 1 })
@@ -53,18 +58,22 @@ test('NotBlank', async function () {
     {
         let resp = await request(server).post('/home/index3')
         expect(resp.status).toBe(500)
+        expect(resp.text).toBe('IllegalArgumentException')
     }
     {
         let resp = await request(server).post('/home/index3').send({ a: null })
         expect(resp.status).toBe(500)
+        expect(resp.text).toBe('IllegalArgumentException')
     }
     {
         let resp = await request(server).post('/home/index3').send({ a: '' })
         expect(resp.status).toBe(500)
+        expect(resp.text).toBe('IllegalArgumentException')
     }
     {
         let resp = await request(server).post('/home/index3').send({ a: ' ' })
         expect(resp.status).toBe(500)
+        expect(resp.text).toBe('IllegalArgumentException')
     }
     {
         let resp = await request(server).post('/home/index3').send({ a: 1 })
@@ -87,6 +96,7 @@ test('Length', async function () {
     {
         let resp = await request(server).post('/home/index4').send({ a: '' })
         expect(resp.status).toBe(500)
+        expect(resp.text).toBe('IllegalArgumentException')
     }
     {
         let resp = await request(server).post('/home/index4').send({ a: ' '.repeat(3) })
@@ -96,10 +106,12 @@ test('Length', async function () {
     {
         let resp = await request(server).post('/home/index4').send({ a: 1 })
         expect(resp.status).toBe(500)
+        expect(resp.text).toBe('IllegalArgumentException')
     }
     {
         let resp = await request(server).post('/home/index4').send({ a: 12345 })
         expect(resp.status).toBe(500)
+        expect(resp.text).toBe('IllegalArgumentException')
     }
     {
         let resp = await request(server).post('/home/index4').send({ a: 12 })
@@ -122,6 +134,7 @@ test('MinLength', async function () {
     {
         let resp = await request(server).post('/home/index5').send({ a: '' })
         expect(resp.status).toBe(500)
+        expect(resp.text).toBe('IllegalArgumentException')
     }
     {
         let resp = await request(server).post('/home/index5').send({ a: ' '.repeat(3) })
@@ -131,6 +144,7 @@ test('MinLength', async function () {
     {
         let resp = await request(server).post('/home/index5').send({ a: 1 })
         expect(resp.status).toBe(500)
+        expect(resp.text).toBe('IllegalArgumentException')
     }
     {
         let resp = await request(server).post('/home/index5').send({ a: 12 })
@@ -153,6 +167,7 @@ test('MaxLength', async function () {
     {
         let resp = await request(server).post('/home/index5').send({ a: '' })
         expect(resp.status).toBe(500)
+        expect(resp.text).toBe('IllegalArgumentException')
     }
     {
         let resp = await request(server).post('/home/index5').send({ a: ' '.repeat(3) })
@@ -180,14 +195,17 @@ test('Range', async function () {
     {
         let resp = await request(server).post('/home/index7').send({ a: '' })
         expect(resp.status).toBe(500)
+        expect(resp.text).toBe('IllegalArgumentException')
     }
     {
         let resp = await request(server).post('/home/index7').send({ a: 1 })
         expect(resp.status).toBe(500)
+        expect(resp.text).toBe('IllegalArgumentException')
     }
     {
         let resp = await request(server).post('/home/index7').send({ a: 5 })
         expect(resp.status).toBe(500)
+        expect(resp.text).toBe('IllegalArgumentException')
     }
     {
         let resp = await request(server).post('/home/index7').send({ a: 2 })
@@ -210,6 +228,7 @@ test('Min', async function () {
     {
         let resp = await request(server).post('/home/index8').send({ a: 1 })
         expect(resp.status).toBe(500)
+        expect(resp.text).toBe('IllegalArgumentException')
     }
     {
         let resp = await request(server).post('/home/index8').send({ a: 2 })
@@ -232,6 +251,7 @@ test('Max', async function () {
     {
         let resp = await request(server).post('/home/index9').send({ a: 5 })
         expect(resp.status).toBe(500)
+        expect(resp.text).toBe('IllegalArgumentException')
     }
     {
         let resp = await request(server).post('/home/index9').send({ a: 2 })
@@ -254,14 +274,17 @@ test('Decimal', async function () {
     {
         let resp = await request(server).post('/home/index10').send({ a: '' })
         expect(resp.status).toBe(500)
+        expect(resp.text).toBe('IllegalArgumentException')
     }
     {
         let resp = await request(server).post('/home/index10').send({ a: 1 })
         expect(resp.status).toBe(500)
+        expect(resp.text).toBe('IllegalArgumentException')
     }
     {
         let resp = await request(server).post('/home/index10').send({ a: 1.00001 })
         expect(resp.status).toBe(500)
+        expect(resp.text).toBe('IllegalArgumentException')
     }
     {
         let resp = await request(server).post('/home/index10').send({ a: 1.01 })
@@ -284,6 +307,7 @@ test('MinDecimal', async function () {
     {
         let resp = await request(server).post('/home/index11').send({ a: 1 })
         expect(resp.status).toBe(500)
+        expect(resp.text).toBe('IllegalArgumentException')
     }
     {
         let resp = await request(server).post('/home/index11').send({ a: 1.01 })
@@ -306,6 +330,7 @@ test('MaxDecimal', async function () {
     {
         let resp = await request(server).post('/home/index12').send({ a: 1.00001 })
         expect(resp.status).toBe(500)
+        expect(resp.text).toBe('IllegalArgumentException')
     }
     {
         let resp = await request(server).post('/home/index12').send({ a: 1.01 })
@@ -328,10 +353,12 @@ test('Reg', async function () {
     {
         let resp = await request(server).post('/home/index13').send({ a: 1 })
         expect(resp.status).toBe(500)
+        expect(resp.text).toBe('IllegalArgumentException')
     }
     {
         let resp = await request(server).post('/home/index13').send({ a: 'a1' })
         expect(resp.status).toBe(500)
+        expect(resp.text).toBe('IllegalArgumentException')
     }
     {
         let resp = await request(server).post('/home/index13').send({ a: 'a' })
@@ -354,6 +381,7 @@ test('Func', async function () {
     {
         let resp = await request(server).post('/home/index14').send({ a: 1 })
         expect(resp.status).toBe(500)
+        expect(resp.text).toBe('IllegalArgumentException')
     }
     {
         let resp = await request(server).post('/home/index14').send({ a: 'admin' })

@@ -190,4 +190,22 @@ function KeepAlive(target, name) {
     target.$aliveFields.push(name);
 }
 exports.KeepAlive = KeepAlive;
+/**
+ * 标记一个类为测试类，程序启动完成后，将会自动执行这些测试
+ * 所有的测试类都必须放在test目录，或者另外指定的目录
+ */
+function Test(target) {
+    target.prototype.$isTest = true;
+    Utils_1.Utils.markAsComponent(target);
+}
+exports.Test = Test;
+/**
+ * 标记一个方法为测试方法，程序启动完成后，将会自动执行这些测试
+ * 仅能在Test类中使用
+ */
+function Spec(target, name) {
+    target.$testMethods = target.$testMethods || [];
+    target.$testMethods.push(name);
+}
+exports.Spec = Spec;
 //# sourceMappingURL=Component.js.map

@@ -1,13 +1,4 @@
 "use strict";
-var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
-    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
-    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
-    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
-    return c > 3 && r && Object.defineProperty(target, key, r), r;
-};
-var __metadata = (this && this.__metadata) || function (k, v) {
-    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
-};
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     return new (P || (P = Promise))(function (resolve, reject) {
         function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
@@ -16,7 +7,6 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-var DogBootApplication_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require("fs");
 const path = require("path");
@@ -35,24 +25,13 @@ const ActionFilterContext_1 = require("./ActionFilterContext");
 const LazyResult_1 = require("./LazyResult");
 const APIDocController_1 = require("./APIDocController");
 const NotFoundException_1 = require("./NotFoundException");
-let DogBootApplication = DogBootApplication_1 = class DogBootApplication {
-    constructor(opts, container) {
-        this.opts = opts;
-        this.container = container;
+class DogBootApplication {
+    constructor() {
         this.app = new Koa();
+        this.opts = Utils_1.Utils.getConfigValue(DogBootOptions_1.DogBootOptions)[0];
+        this.container = new DIContainer_1.DIContainer();
         this.container.on('reload', () => {
-            this.container.setComponentInstance(DogBootApplication_1, this);
-            this.init();
-        });
-    }
-    init() {
-        return __awaiter(this, void 0, void 0, function* () {
-            this.readyToAcceptRequest = false;
-            this.globalExceptionFilter = null;
-            this.globalActionFilters = [];
-            this.requestHandler = null;
-            this.controllerClasses = [];
-            yield this.runAsync();
+            this.reload();
         });
     }
     build() {
@@ -267,19 +246,33 @@ let DogBootApplication = DogBootApplication_1 = class DogBootApplication {
         }));
     }
     /**
+     * 主动热更新程序
+     */
+    reload() {
+        this.container.clear();
+        return this.runAsync();
+    }
+    /**
      * 异步启动程序，程序完全启动后才会返回
      */
     runAsync() {
         return __awaiter(this, void 0, void 0, function* () {
             let startTime = Date.now();
+            this.readyToAcceptRequest = false;
+            this.globalExceptionFilter = null;
+            this.globalActionFilters = [];
+            this.requestHandler = null;
+            this.controllerClasses = [];
+            this.container.setComponentInstance(DogBootApplication, this);
+            this.container.setComponentInstance(DIContainer_1.DIContainer, this.container);
             this.app.middleware = [];
             this.build();
             this.buildApidoc();
             this.useNotFoundExceptionHandler();
             this.requestHandler = this.app.callback();
             let port = this.opts.port;
-            if (process.env.dogbootPort) {
-                port = Number.parseInt(process.env.dogbootPort);
+            if (process.env.dogPort) {
+                port = Number.parseInt(process.env.dogPort);
             }
             let lastServer = this.server;
             if (!lastServer) {
@@ -293,18 +286,56 @@ let DogBootApplication = DogBootApplication_1 = class DogBootApplication {
             this.readyToAcceptRequest = true;
             let endTime = Date.now();
             console.log(`Your application has ${lastServer ? 'reloaded' : 'started'} at ${port} in ${endTime - startTime}ms`);
+            yield this.test();
+            return this;
         });
     }
-};
-__decorate([
-    Component_1.Init,
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
-    __metadata("design:returntype", Promise)
-], DogBootApplication.prototype, "init", null);
-DogBootApplication = DogBootApplication_1 = __decorate([
-    Component_1.Component,
-    __metadata("design:paramtypes", [DogBootOptions_1.DogBootOptions, DIContainer_1.DIContainer])
-], DogBootApplication);
+    test() {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (!this.opts.enableTest) {
+                return;
+            }
+            console.log('Running tests...');
+            let startTime = Date.now();
+            let testRootPath = path.join(Utils_1.Utils.getExecRootPath(), this.opts.testRootPathName);
+            let testFileList = Utils_1.Utils.getFileListInFolder(testRootPath);
+            let testClassList = [];
+            for (let testFile of testFileList) {
+                try {
+                    let _Module = require(testFile);
+                    Object.values(_Module).filter(b => b instanceof Function && b.prototype.$isTest)
+                        .forEach((b) => {
+                        testClassList.push(b);
+                    });
+                }
+                catch (error) { }
+            }
+            let passed = 0;
+            let faild = 0;
+            let total = 0;
+            for (let _Class of testClassList) {
+                let _prototype = _Class.prototype;
+                let testInstance = yield this.container.getComponentInstanceFromFactory(_Class);
+                for (let testMethod of _prototype.$testMethods) {
+                    try {
+                        yield testInstance[testMethod]();
+                        passed += 1;
+                    }
+                    catch (error) {
+                        console.error(`Test faild at ${_Class.name}.${testMethod}`);
+                        console.trace(error.stack);
+                        faild += 1;
+                    }
+                    finally {
+                        total += 1;
+                    }
+                }
+            }
+            let endTime = Date.now();
+            console.log(`All tests ran in ${endTime - startTime}ms`);
+            console.table([{ passed, faild, total }]);
+        });
+    }
+}
 exports.DogBootApplication = DogBootApplication;
 //# sourceMappingURL=DogBootApplication.js.map

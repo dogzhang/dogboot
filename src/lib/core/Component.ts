@@ -186,3 +186,21 @@ export function KeepAlive(target: any, name: string) {
     target.$aliveFields = target.$aliveFields || []
     target.$aliveFields.push(name)
 }
+
+/**
+ * 标记一个类为测试类，程序启动完成后，将会自动执行这些测试
+ * 所有的测试类都必须放在test目录，或者另外指定的目录
+ */
+export function Test(target: new (...args: any[]) => {}) {
+    target.prototype.$isTest = true
+    Utils.markAsComponent(target)
+}
+
+/**
+ * 标记一个方法为测试方法，程序启动完成后，将会自动执行这些测试
+ * 仅能在Test类中使用
+ */
+export function Spec(target: any, name: string) {
+    target.$testMethods = target.$testMethods || []
+    target.$testMethods.push(name)
+}

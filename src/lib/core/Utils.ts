@@ -1,5 +1,6 @@
 import fs = require('fs');
 import path = require('path');
+import { DogUtils } from './DogUtils';
 
 /**
  * 仅仅被dogboot使用的内部工具方法
@@ -25,7 +26,7 @@ export class Utils {
      */
     static getFileListInFolder(dirPath: string) {
         let list = fs.readdirSync(dirPath)
-        let fileList = []
+        let fileList: string[] = []
         list.forEach(a => {
             let filePath = path.join(dirPath, a)
             let fileState = fs.statSync(filePath)
@@ -81,7 +82,7 @@ export class Utils {
     }
 
     static getEntryFilename() {
-        return process.env.dogbootEntry || process.mainModule.filename
+        return process.env.dogEntry || process.mainModule.filename
     }
 
     static getAppRootPath() {
@@ -98,5 +99,26 @@ export class Utils {
 
     static getConfigFilename(configName: string) {
         return path.join(this.getAppRootPath(), configName)
+    }
+
+    /**
+     * 获取配置值
+     * @param target 配置类型
+     */
+    static getConfigValue<T>(target: new (...args: any[]) => T): [T, string] {
+        let configName = target.prototype.$configName
+        let configFilePath = Utils.getConfigFilename(configName)
+        let originalVal = null
+        try {
+            originalVal = require(configFilePath)
+        } catch{ }
+        let sectionArr = target.prototype.$configField.split('.').filter((a: any) => a)
+        for (let a of sectionArr) {
+            if (originalVal == null) {
+                break
+            }
+            originalVal = originalVal[a]
+        }
+        return [DogUtils.getTypeSpecifiedValue(target, originalVal, new target()), configFilePath]
     }
 }

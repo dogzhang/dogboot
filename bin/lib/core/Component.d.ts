@@ -89,3 +89,13 @@ export declare function ExceptionHandler(type: new (...args: any[]) => Error | a
  * 标记此字段在reload的时候，保持在内存中并且继承到新的实例
  */
 export declare function KeepAlive(target: any, name: string): void;
+/**
+ * 标记一个类为测试类，程序启动完成后，将会自动执行这些测试
+ * 所有的测试类都必须放在test目录，或者另外指定的目录
+ */
+export declare function Test(target: new (...args: any[]) => {}): void;
+/**
+ * 标记一个方法为测试方法，程序启动完成后，将会自动执行这些测试
+ * 仅能在Test类中使用
+ */
+export declare function Spec(target: any, name: string): void;

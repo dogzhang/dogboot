@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require("fs");
 const path = require("path");
+const DogUtils_1 = require("./DogUtils");
 /**
  * 仅仅被dogboot使用的内部工具方法
  */
@@ -79,7 +80,7 @@ class Utils {
         });
     }
     static getEntryFilename() {
-        return process.env.dogbootEntry || process.mainModule.filename;
+        return process.env.dogEntry || process.mainModule.filename;
     }
     static getAppRootPath() {
         return path.resolve(Utils.getEntryFilename(), '..', '..');
@@ -94,6 +95,27 @@ class Utils {
     }
     static getConfigFilename(configName) {
         return path.join(this.getAppRootPath(), configName);
+    }
+    /**
+     * 获取配置值
+     * @param target 配置类型
+     */
+    static getConfigValue(target) {
+        let configName = target.prototype.$configName;
+        let configFilePath = Utils.getConfigFilename(configName);
+        let originalVal = null;
+        try {
+            originalVal = require(configFilePath);
+        }
+        catch (_a) { }
+        let sectionArr = target.prototype.$configField.split('.').filter((a) => a);
+        for (let a of sectionArr) {
+            if (originalVal == null) {
+                break;
+            }
+            originalVal = originalVal[a];
+        }
+        return [DogUtils_1.DogUtils.getTypeSpecifiedValue(target, originalVal, new target()), configFilePath];
     }
 }
 exports.Utils = Utils;

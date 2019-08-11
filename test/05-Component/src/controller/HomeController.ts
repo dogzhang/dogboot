@@ -1,4 +1,4 @@
-import { Controller, GetMapping } from "../../../../bin/index";
+import { Controller, GetMapping, DogBootApplication, DIContainer } from "../../../../bin/index";
 import { MyService1 } from "../component/MyService1";
 import { MyService4 } from "../component/MyService4";
 import { MyService2 } from "../component/MyService2";
@@ -84,5 +84,25 @@ export class Home7Controller {
     @GetMapping('/index')
     async index() {
         return this.myService9.index()
+    }
+}
+
+@Controller()
+export class Home8Controller {
+    constructor(private readonly app: DogBootApplication) { }
+
+    @GetMapping('/index')
+    async index() {
+        return (this.app as any).__proto__.constructor.name
+    }
+}
+
+@Controller()
+export class Home9Controller {
+    constructor(private readonly container: DIContainer) { }
+
+    @GetMapping('/index')
+    async index() {
+        return (this.container as any).__proto__.constructor.name
     }
 }

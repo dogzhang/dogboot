@@ -11,26 +11,20 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const chokidar = require("chokidar");
 const events_1 = require("events");
 const Utils_1 = require("./Utils");
-const DogUtils_1 = require("./DogUtils");
 const DIContainerOptions_1 = require("./DIContainerOptions");
 class DIContainer extends events_1.EventEmitter {
     constructor() {
-        super(...arguments);
+        super();
         this.componentInstanceMapKeyByFilenameAndClassName = new Map();
         this.componentInstanceMap = new Map();
         this.configPathSet = new Set();
+        this.opts = Utils_1.Utils.getConfigValue(DIContainerOptions_1.DIContainerOptions)[0];
+        if (this.opts.enableHotload == true) {
+            this.watch();
+        }
     }
     on(event, listener) {
         return super.on(event, listener);
-    }
-    init() {
-        return __awaiter(this, void 0, void 0, function* () {
-            this.componentInstanceMap.set(DIContainer, this);
-            this.opts = yield this.getComponentInstanceFromFactory(DIContainerOptions_1.DIContainerOptions);
-            if (this.opts.enableHotload == true) {
-                this.watch();
-            }
-        });
     }
     watch() {
         return __awaiter(this, void 0, void 0, function* () {
@@ -42,12 +36,12 @@ class DIContainer extends events_1.EventEmitter {
             this.watcher.on('all', () => {
                 clearTimeout(st);
                 st = setTimeout(() => {
-                    this.reload();
+                    this.emit('reload');
                 }, this.opts.hotloadDebounceInterval);
             });
         });
     }
-    reload() {
+    clear() {
         Utils_1.Utils.getFileListInFolder(Utils_1.Utils.getExecRootPath()).forEach(a => {
             if (require.cache[a]) {
                 delete require.cache[a];
@@ -58,7 +52,6 @@ class DIContainer extends events_1.EventEmitter {
         });
         this.configPathSet.clear();
         this.componentInstanceMap.clear();
-        this.emit('reload');
     }
     /**
      * 将已经实例化好的对象添加进容器
@@ -156,27 +149,11 @@ class DIContainer extends events_1.EventEmitter {
         });
     }
     getConfigValue(target) {
-        let configName = target.prototype.$configName;
-        let configFilePath = Utils_1.Utils.getConfigFilename(configName);
-        let originalVal = null;
-        try {
-            originalVal = require(configFilePath);
-            this.addConfigFilePath(configFilePath);
-        }
-        catch (_a) { }
-        let sectionArr = target.prototype.$configField.split('.').filter((a) => a);
-        for (let a of sectionArr) {
-            if (originalVal == null) {
-                break;
-            }
-            originalVal = originalVal[a];
-        }
-        return DogUtils_1.DogUtils.getTypeSpecifiedValue(target, originalVal, new target());
+        let [val, configFilePath] = Utils_1.Utils.getConfigValue(target);
+        this.addConfigFilePath(configFilePath);
+        return val;
     }
     addConfigFilePath(configFilePath) {
-        if (!this.opts) {
-            return;
-        }
         if (!this.opts.enableHotload) {
             return;
         }
