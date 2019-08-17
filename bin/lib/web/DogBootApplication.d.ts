@@ -5,7 +5,6 @@ export declare class DogBootApplication {
     app: Koa<any, {}>;
     server: Server;
     controllerClasses: (new (...args: any[]) => {})[];
-    private readyToAcceptRequest;
     private globalExceptionFilter;
     private globalActionFilters;
     private requestHandler;

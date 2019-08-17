@@ -78,9 +78,6 @@ class DogBootApplication {
             return;
         }
         router[action.$method](prefix + action.$path, (ctx) => __awaiter(this, void 0, void 0, function* () {
-            while (!this.readyToAcceptRequest) {
-                yield Utils_1.Utils.sleep(200);
-            }
             try {
                 yield this.handleContext(actionName, _Class, ctx);
             }
@@ -258,7 +255,6 @@ class DogBootApplication {
     runAsync() {
         return __awaiter(this, void 0, void 0, function* () {
             let startTime = Date.now();
-            this.readyToAcceptRequest = false;
             this.globalExceptionFilter = null;
             this.globalActionFilters = [];
             this.requestHandler = null;
@@ -278,12 +274,15 @@ class DogBootApplication {
             if (!lastServer) {
                 this.server = http.createServer((req, res) => {
                     this.requestHandler(req, res);
-                }).listen(port);
+                });
+            }
+            else {
+                this.server.close();
             }
             yield this.startUp();
             yield this.initComponents();
             yield this.initFilters();
-            this.readyToAcceptRequest = true;
+            this.server.listen(port);
             let endTime = Date.now();
             console.log(`Your application has ${lastServer ? 'reloaded' : 'started'} at ${port} in ${endTime - startTime}ms`);
             yield this.test();

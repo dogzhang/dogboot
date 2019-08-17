@@ -23,7 +23,6 @@ export class DogBootApplication {
 
     controllerClasses: (new (...args: any[]) => {})[]
 
-    private readyToAcceptRequest: boolean
     private globalExceptionFilter: new (...args: any[]) => {}
     private globalActionFilters: (new (...args: any[]) => {})[]
     private requestHandler: Function
@@ -87,9 +86,6 @@ export class DogBootApplication {
             return
         }
         router[action.$method](prefix + action.$path, async (ctx: Koa.Context) => {
-            while (!this.readyToAcceptRequest) {
-                await Utils.sleep(200)
-            }
             try {
                 await this.handleContext(actionName, _Class, ctx)
             } catch (err) {
@@ -268,7 +264,6 @@ export class DogBootApplication {
     async runAsync() {
         let startTime = Date.now()
 
-        this.readyToAcceptRequest = false
         this.globalExceptionFilter = null
         this.globalActionFilters = []
         this.requestHandler = null
@@ -292,13 +287,17 @@ export class DogBootApplication {
         if (!lastServer) {
             this.server = http.createServer((req, res) => {
                 this.requestHandler(req, res)
-            }).listen(port)
+            })
+        } else {
+            this.server.close()
         }
 
         await this.startUp()
         await this.initComponents()
         await this.initFilters()
-        this.readyToAcceptRequest = true
+
+        this.server.listen(port)
+
         let endTime = Date.now()
         console.log(`Your application has ${lastServer ? 'reloaded' : 'started'} at ${port} in ${endTime - startTime}ms`)
 
