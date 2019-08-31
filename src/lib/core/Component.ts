@@ -31,14 +31,16 @@ export function StartUp(order: number = 0) {
  *     3、Controller.Action
  *     4、高优先级ActionFilter.DoAfter
  *     5、低优先级ActionFilter.DoAfter
- * 任何一步导致ctx.status != 404都将阻止后续步骤的执行
+ * 任何DoBefore导致ctx.status != 404都将阻止后续步骤的执行，但是Controller.Action执行成功后后续的DoAfter都会执行
  * ActionFilter是一种特殊的Component
  * @param order 优先级，值越大优先级越高
+ * @param area 作用域限制，比如：/app，表示对controller/app内的控制器生效；/app/v1，则进一步深入到app下的v1文件夹，默认为空表示对所有控制器有效
  */
-export function GlobalActionFilter(order: number = 0) {
+export function GlobalActionFilter(order: number = 0, area: string = '/') {
     return function (target: new (...args: any[]) => {}) {
         target.prototype.$isGlobalActionFilter = true
         target.prototype.$order = order
+        target.prototype.$area = area
         Utils.markAsComponent(target)
     }
 }
@@ -55,12 +57,16 @@ export function ActionFilter(target: new (...args: any[]) => {}) {
 
 /**
  * 标记此类为全局异常过滤器，此类将会被dogboot自动扫描到并且应用到所有的控制器以及其Action
- * 注意，一个app只能有一个全局异常过滤器，请删除多余的全局异常过滤器，以免程序运行结果不符合预期
+ * 注意，ExceptionFilter的顺序没有明确规定，只能被一个处理器匹配到
  * ExceptionFilter是一种特殊的Component
+ * @param area 作用域限制，比如：/app，表示对controller/app内的控制器生效；/app/v1，则进一步深入到app下的v1文件夹，默认为空表示对所有控制器有效
  */
-export function GlobalExceptionFilter(target: new (...args: any[]) => {}) {
-    target.prototype.$isGlobalExceptionFilter = true
-    Utils.markAsComponent(target)
+export function GlobalExceptionFilter(area: string = '/') {
+    return function (target: new (...args: any[]) => {}) {
+        target.prototype.$isGlobalExceptionFilter = true
+        target.prototype.$area = area
+        Utils.markAsComponent(target)
+    }
 }
 
 /**
@@ -118,7 +124,7 @@ export function Init(target: any, name: string) {
 export function UseActionFilter(actionFilter: new (...args: any[]) => {}) {
     return function (target: any, name: string = null) {
         if (!actionFilter.prototype.$isActionFilter) {
-            console.warn(`UseActionFilter只能使用ActionFilter，此actionFilter不符合要求，(${actionFilter.name})将不会生效`)
+            console.warn(`UseActionFilter只能使用ActionFilter，此actionFilter不符合要求，${actionFilter.name}将不会生效`)
             return
         }
         if (name == null) {
@@ -156,14 +162,16 @@ export function DoAfter(target: any, name: string) {
 export function UseExceptionFilter(exceptionFilter: new (...args: any[]) => {}) {
     return function (target: any, name: string = null) {
         if (!exceptionFilter.prototype.$isExceptionFilter) {
-            console.warn(`UseExceptionFilter只能使用ExceptionFilter，此exceptionFilter不符合要求，(${exceptionFilter.name})将不会生效`)
+            console.warn(`UseExceptionFilter只能使用ExceptionFilter，此exceptionFilter不符合要求，${exceptionFilter.name}将不会生效`)
             return
         }
         if (name == null) {
-            target.prototype.$exceptionFilter = exceptionFilter
+            target.prototype.$exceptionFilters = target.prototype.$exceptionFilters || []
+            target.prototype.$exceptionFilters.unshift(exceptionFilter)
         } else {
             let action = target[name]
-            action.$exceptionFilter = exceptionFilter
+            action.$exceptionFilters = action.$exceptionFilters || []
+            action.$exceptionFilters.unshift(exceptionFilter)
         }
     }
 }

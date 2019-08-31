@@ -8,7 +8,7 @@ export class DogBootOptions {
     port?: number = 3000
 
     @Typed()
-    prefix?: string
+    prefix?: string = ''
 
     @Typed()
     staticRootPathName?: string = 'public'

@@ -16,14 +16,15 @@ import { ActionFilterContext } from './ActionFilterContext';
 import { LazyResult } from './LazyResult';
 import { APIDocController } from './APIDocController';
 import { NotFoundException } from './NotFoundException';
+import { Area } from './Area';
 
 export class DogBootApplication {
     app = new Koa()
     server: Server
 
-    controllerClasses: (new (...args: any[]) => {})[]
+    area: Area
 
-    private globalExceptionFilter: new (...args: any[]) => {}
+    private globalExceptionFilters: (new (...args: any[]) => {})[]
     private globalActionFilters: (new (...args: any[]) => {})[]
     private requestHandler: Function
     private opts: DogBootOptions
@@ -48,51 +49,58 @@ export class DogBootApplication {
         }
 
         let controllerRootPath = path.join(Utils.getExecRootPath(), this.opts.controllerRootPathName)
-        let spiltStr = '/'
-        if (process.platform == 'win32') {
-            spiltStr = '\\'
-        }
-        Utils.getFileListInFolder(controllerRootPath).forEach(a => {
-            let classDir = path.resolve(a, '..')
-            let areaPrefix = path.relative(controllerRootPath, classDir).split(spiltStr).filter(b => b).join('/')
-            if (areaPrefix) {
-                areaPrefix = '/' + areaPrefix
+        this.area = new Area(controllerRootPath, '/')
+        this.checkControllerDir(this.area)
+    }
+
+    private checkControllerDir(area: Area) {
+        let list = fs.readdirSync(area.dirPath)
+        list.forEach(a => {
+            let filePath = path.join(area.dirPath, a)
+            let fileState = fs.statSync(filePath)
+            if (fileState.isFile()) {
+                let _Module = Utils.tryRequire(filePath)
+                _Module && Object.values(_Module).filter(b => b instanceof Function && b.prototype.$isController)
+                    .forEach((b: new (...args: any[]) => {}) => {
+                        area.controllerList.push(b)
+                        this.checkControllerClass(area.areaPath, b)
+                    })
+            } else if (fileState.isDirectory()) {
+                let areaPath = (area.areaPath + '/' + a).replace(/^\/\//, '/')
+                let subArea = new Area(filePath, areaPath)
+                area.subAreaList.push(subArea)
+                this.checkControllerDir(subArea)
             }
-            let _Module = require(a)
-            Object.values(_Module).filter(b => b instanceof Function && b.prototype.$isController)
-                .forEach((b: new (...args: any[]) => {}) => {
-                    this.checkControllerClass(areaPrefix, b)
-                    this.controllerClasses.push(b)
-                })
         })
     }
 
-    private checkControllerClass(areaPrefix: string, _Class: new (...args: any[]) => {}) {
-        let prefix = areaPrefix + _Class.prototype.$path
-        let router = new Router()
-        Object.getOwnPropertyNames(_Class.prototype).forEach(c => {
-            this.checkAndHandleActionName(c, _Class, router, prefix)
+    private checkControllerClass(areaPath: string, _Class: new (...args: any[]) => {}) {
+        let router = new Router({
+            prefix: this.opts.prefix + (areaPath == '/' ? '' : areaPath) + _Class.prototype.$path
         })
-        if (this.opts.prefix) {
-            router.prefix(this.opts.prefix)
-        }
+        Object.getOwnPropertyNames(_Class.prototype).forEach(a => {
+            this.checkAndHandleActionName(a, _Class, router, areaPath)
+        })
         this.app.use(router.routes())
     }
 
-    private checkAndHandleActionName(actionName: string, _Class: new (...args: any[]) => {}, router: Router<any, {}>, prefix: string) {
+    private checkAndHandleActionName(actionName: string, _Class: new (...args: any[]) => {}, router: Router<any, {}>, areaPath: string) {
         let _prototype = _Class.prototype
         let action = _prototype[actionName]
         if (!action.$method) {
             return
         }
-        router[action.$method](prefix + action.$path, async (ctx: Koa.Context) => {
+        router[action.$method](action.$path, async (ctx: Koa.Context) => {
             try {
                 await this.handleContext(actionName, _Class, ctx)
             } catch (err) {
-                let exceptionFilter = _prototype[actionName].$exceptionFilter || _prototype.$exceptionFilter || this.globalExceptionFilter
-                let handlerName = this.getExceptionHandlerName(exceptionFilter, err.__proto__.constructor)
+                let filtersOnController = _prototype.$exceptionFilters || []
+                let filtersOnAction = _prototype[actionName].$exceptionFilters || []
+                let filters = this.globalExceptionFilters.concat(filtersOnController, filtersOnAction).reverse()
+
+                let [exceptionFilter, handlerName] = this.getExceptionHandlerName(err.__proto__.constructor, areaPath, filters)
                 if (!handlerName) {
-                    handlerName = this.getExceptionHandlerName(exceptionFilter, Error)
+                    [exceptionFilter, handlerName] = this.getExceptionHandlerName(Error, areaPath, filters)
                 }
                 if (!handlerName) {
                     throw err
@@ -123,15 +131,15 @@ export class DogBootApplication {
         }
         let actionFilterContext = new ActionFilterContext(ctx, params, $paramTypes, _Class, actionName)
 
-        let actionFiltersOnController = _prototype.$actionFilters || []
-        let actionFiltersOnAction = instance[actionName].$actionFilters || []
-        let actionFilters = this.globalActionFilters.concat(actionFiltersOnController, actionFiltersOnAction)
-        let actionFilterAndInstances: [Function, any][] = []
-        for (let actionFilter of actionFilters) {
-            let filterInstance = await this.container.getComponentInstanceFromFactory(actionFilter)
-            actionFilterAndInstances.push([actionFilter, filterInstance])
+        let filtersOnController = _prototype.$actionFilters || []
+        let filtersOnAction = instance[actionName].$actionFilters || []
+        let filters = this.globalActionFilters.concat(filtersOnController, filtersOnAction)
+        let filterAndInstances: [new (...args: any[]) => {}, any][] = []
+        for (let filter of filters) {
+            let filterInstance = await this.container.getComponentInstanceFromFactory(filter)
+            filterAndInstances.push([filter, filterInstance])
 
-            let handlerName = actionFilter.prototype.$actionHandlerMap.get(DoBefore)
+            let handlerName = filter.prototype.$actionHandlerMap.get(DoBefore)
             if (!handlerName) {
                 continue
             }
@@ -152,8 +160,8 @@ export class DogBootApplication {
             }
         }
 
-        for (let [actionFilter, filterInstance] of actionFilterAndInstances.reverse()) {
-            let handlerName = actionFilter.prototype.$actionHandlerMap.get(DoAfter)
+        for (let [filter, filterInstance] of filterAndInstances.reverse()) {
+            let handlerName = filter.prototype.$actionHandlerMap.get(DoAfter)
             if (!handlerName) {
                 continue
             }
@@ -161,18 +169,17 @@ export class DogBootApplication {
         }
     }
 
-    private getExceptionHandlerName(exceptionFilter: new (...args: any[]) => {}, exceptionType: new (...args: any[]) => {}): string {
-        if (!exceptionFilter) {
-            return null
+    private getExceptionHandlerName(exceptionType: new (...args: any[]) => {}, area: string, filters: (new (...args: any[]) => {})[]): [(new (...args: any[]) => {})?, string?] {
+        for (let a of filters) {
+            if (a.prototype.$isGlobalExceptionFilter && !area.startsWith(a.prototype.$area)) {
+                continue
+            }
+            let handlerName = a.prototype.$exceptionHandlerMap.get(exceptionType)
+            if (handlerName) {
+                return [a, handlerName]
+            }
         }
-        if (!exceptionFilter.prototype.$exceptionHandlerMap) {
-            return null
-        }
-        let handlerName = exceptionFilter.prototype.$exceptionHandlerMap.get(exceptionType)
-        if (!handlerName) {
-            return null
-        }
-        return handlerName
+        return []
     }
 
     private async handlerException(exceptionFilter: new (...args: any[]) => {}, handlerName: string, err: any, ctx: Koa.Context) {
@@ -185,11 +192,11 @@ export class DogBootApplication {
         if (!fs.existsSync(startupRootPath)) {
             return
         }
-        let startUpFileList = Utils.getFileListInFolder(startupRootPath)
+        let startUpFileList = Utils.getAllFileListInDir(startupRootPath)
         let startUpClassList = []
         for (let filePath of startUpFileList) {
-            let _Module = require(filePath)
-            Object.values(_Module).forEach(a => {
+            let _Module = Utils.tryRequire(filePath)
+            _Module && Object.values(_Module).forEach(a => {
                 if (a instanceof Function) {
                     startUpClassList.push(a)
                 }
@@ -201,9 +208,12 @@ export class DogBootApplication {
         }
     }
 
-    private async initComponents() {
-        for (let componentClass of this.controllerClasses) {
-            await this.container.getComponentInstanceFromFactory(componentClass)
+    private async initControllers(area: Area) {
+        for (let controllerClass of area.controllerList) {
+            await this.container.getComponentInstanceFromFactory(controllerClass)
+        }
+        for (let subArea of area.subAreaList) {
+            await this.initControllers(subArea)
         }
     }
 
@@ -212,23 +222,23 @@ export class DogBootApplication {
         if (!fs.existsSync(filterRootPath)) {
             return
         }
-        let filterFileList = Utils.getFileListInFolder(filterRootPath)
+        let filterFileList = Utils.getAllFileListInDir(filterRootPath)
         let filterClassList = []
         for (let filePath of filterFileList) {
-            let _Module = require(filePath)
-            Object.values(_Module).forEach(a => {
+            let _Module = Utils.tryRequire(filePath)
+            _Module && Object.values(_Module).forEach(a => {
                 if (a instanceof Function) {
                     filterClassList.push(a)
                 }
             })
         }
         this.globalActionFilters = filterClassList.filter(a => a.prototype.$isGlobalActionFilter).sort((a, b) => b.prototype.$order - a.prototype.$order)
-        this.globalExceptionFilter = filterClassList.find(a => a.prototype.$isGlobalExceptionFilter)
+        this.globalExceptionFilters = filterClassList.filter(a => a.prototype.$isGlobalExceptionFilter)
         for (let filter of this.globalActionFilters) {
             await this.container.getComponentInstanceFromFactory(filter)
         }
-        if (this.globalExceptionFilter) {
-            await this.container.getComponentInstanceFromFactory(this.globalExceptionFilter)
+        for (let filter of this.globalExceptionFilters) {
+            await this.container.getComponentInstanceFromFactory(filter)
         }
     }
 
@@ -241,8 +251,7 @@ export class DogBootApplication {
 
     private useNotFoundExceptionHandler() {
         this.app.use(async ctx => {
-            let exceptionFilter = this.globalExceptionFilter
-            let handlerName = this.getExceptionHandlerName(exceptionFilter, NotFoundException)
+            let [exceptionFilter, handlerName] = this.getExceptionHandlerName(NotFoundException, '/', this.globalExceptionFilters)
             if (!handlerName) {
                 return
             }
@@ -264,10 +273,9 @@ export class DogBootApplication {
     async runAsync() {
         let startTime = Date.now()
 
-        this.globalExceptionFilter = null
+        this.globalExceptionFilters = []
         this.globalActionFilters = []
         this.requestHandler = null
-        this.controllerClasses = []
 
         this.container.setComponentInstance(DogBootApplication, this)
         this.container.setComponentInstance(DIContainer, this.container)
@@ -293,7 +301,7 @@ export class DogBootApplication {
         }
 
         await this.startUp()
-        await this.initComponents()
+        await this.initControllers(this.area)
         await this.initFilters()
 
         this.server.listen(port)
@@ -315,12 +323,12 @@ export class DogBootApplication {
         let startTime = Date.now()
 
         let testRootPath = path.join(Utils.getExecRootPath(), this.opts.testRootPathName)
-        let testFileList = Utils.getFileListInFolder(testRootPath)
+        let testFileList = Utils.getAllFileListInDir(testRootPath)
         let testClassList: (new (...args: any[]) => {})[] = []
         for (let testFile of testFileList) {
             try {
-                let _Module = require(testFile)
-                Object.values(_Module).filter(b => b instanceof Function && b.prototype.$isTest)
+                let _Module = Utils.tryRequire(testFile)
+                _Module && Object.values(_Module).filter(b => b instanceof Function && b.prototype.$isTest)
                     .forEach((b: new (...args: any[]) => {}) => {
                         testClassList.push(b)
                     })

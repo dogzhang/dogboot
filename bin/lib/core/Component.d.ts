@@ -19,11 +19,12 @@ export declare function StartUp(order?: number): (target: new (...args: any[]) =
  *     3、Controller.Action
  *     4、高优先级ActionFilter.DoAfter
  *     5、低优先级ActionFilter.DoAfter
- * 任何一步导致ctx.status != 404都将阻止后续步骤的执行
+ * 任何DoBefore导致ctx.status != 404都将阻止后续步骤的执行，但是Controller.Action执行成功后后续的DoAfter都会执行
  * ActionFilter是一种特殊的Component
  * @param order 优先级，值越大优先级越高
+ * @param area 作用域限制，比如：/app，表示对controller/app内的控制器生效；/app/v1，则进一步深入到app下的v1文件夹，默认为空表示对所有控制器有效
  */
-export declare function GlobalActionFilter(order?: number): (target: new (...args: any[]) => {}) => void;
+export declare function GlobalActionFilter(order?: number, area?: string): (target: new (...args: any[]) => {}) => void;
 /**
  * 标记此类为局部请求过滤器，除非被显式使用，否则不会生效，可以作用于Controller以及Action
  * 该过滤器优先级高于全局，一个Controller或者Action同时使用多个局部过滤器时，靠前的优先级更高
@@ -32,10 +33,11 @@ export declare function GlobalActionFilter(order?: number): (target: new (...arg
 export declare function ActionFilter(target: new (...args: any[]) => {}): void;
 /**
  * 标记此类为全局异常过滤器，此类将会被dogboot自动扫描到并且应用到所有的控制器以及其Action
- * 注意，一个app只能有一个全局异常过滤器，请删除多余的全局异常过滤器，以免程序运行结果不符合预期
+ * 注意，ExceptionFilter的顺序没有明确规定，只能被一个处理器匹配到
  * ExceptionFilter是一种特殊的Component
+ * @param area 作用域限制，比如：/app，表示对controller/app内的控制器生效；/app/v1，则进一步深入到app下的v1文件夹，默认为空表示对所有控制器有效
  */
-export declare function GlobalExceptionFilter(target: new (...args: any[]) => {}): void;
+export declare function GlobalExceptionFilter(area?: string): (target: new (...args: any[]) => {}) => void;
 /**
  * 标记此类为局部异常过滤器，除非被显式使用，否则不会生效，可以作用于Controller以及Action
  * 该过滤器优先级高于全局，一个Controller或者Action同时使用多个局部过滤器时，只会使用第一个

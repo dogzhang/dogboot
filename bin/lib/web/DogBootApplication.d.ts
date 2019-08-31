@@ -1,24 +1,26 @@
 /// <reference types="node" />
 import Koa = require('koa');
 import { Server } from 'http';
+import { Area } from './Area';
 export declare class DogBootApplication {
     app: Koa<any, {}>;
     server: Server;
-    controllerClasses: (new (...args: any[]) => {})[];
-    private globalExceptionFilter;
+    area: Area;
+    private globalExceptionFilters;
     private globalActionFilters;
     private requestHandler;
     private opts;
     private container;
     constructor();
     private build;
+    private checkControllerDir;
     private checkControllerClass;
     private checkAndHandleActionName;
     private handleContext;
     private getExceptionHandlerName;
     private handlerException;
     private startUp;
-    private initComponents;
+    private initControllers;
     private initFilters;
     private buildApidoc;
     private useNotFoundExceptionHandler;

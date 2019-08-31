@@ -42,7 +42,7 @@ class DIContainer extends events_1.EventEmitter {
         });
     }
     clear() {
-        Utils_1.Utils.getFileListInFolder(Utils_1.Utils.getExecRootPath()).forEach(a => {
+        Utils_1.Utils.getAllFileListInDir(Utils_1.Utils.getExecRootPath()).forEach(a => {
             if (require.cache[a]) {
                 delete require.cache[a];
             }

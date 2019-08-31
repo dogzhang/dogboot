@@ -15,6 +15,7 @@ const CorsOptions_1 = require("./CorsOptions");
 let DogBootOptions = class DogBootOptions {
     constructor() {
         this.port = 3000;
+        this.prefix = '';
         this.staticRootPathName = 'public';
         this.controllerRootPathName = 'controller';
         this.startupRootPathName = 'startup';

@@ -44,3 +44,19 @@ test('handle-mutli-Exception', async function () {
         expect(resp.text).toBe('ok')
     }
 })
+
+test('rank-of-mutli-ExceptionFilter-on-action', async function () {
+    {
+        let resp = await request(server).get('/home4/index')
+        expect(resp.status).toBe(200)
+        expect(resp.text).toBe('4_1ExceptionFilter-error')
+    }
+})
+
+test('rank-of-mutli-ExceptionFilter-on-Controller', async function () {
+    {
+        let resp = await request(server).get('/home5/index')
+        expect(resp.status).toBe(200)
+        expect(resp.text).toBe('5_1ExceptionFilter-error')
+    }
+})

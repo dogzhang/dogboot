@@ -1,6 +1,6 @@
 import { GlobalExceptionFilter, ExceptionHandler } from "../../../../bin/index";
 
-@GlobalExceptionFilter
+@GlobalExceptionFilter()
 export class MyGlobalExceptionFilter {
     @ExceptionHandler(Error)
     async handleError(ctx: any, error: Error) {

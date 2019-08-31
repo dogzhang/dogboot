@@ -40,7 +40,7 @@ export class DIContainer extends EventEmitter {
     }
 
     clear() {
-        Utils.getFileListInFolder(Utils.getExecRootPath()).forEach(a => {
+        Utils.getAllFileListInDir(Utils.getExecRootPath()).forEach(a => {
             if (require.cache[a]) {
                 delete require.cache[a]
             }

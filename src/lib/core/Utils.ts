@@ -21,24 +21,48 @@ export class Utils {
     }
 
     /**
-     * 获取指定目录下js或者ts文件列表
-     * @param dirPath 指定的目录
+     * 递归获取指定文件夹下所有文件列表
+     * @param dirPath 指定的文件夹
      */
-    static getFileListInFolder(dirPath: string) {
+    static getAllFileListInDir(dirPath: string) {
         let list = fs.readdirSync(dirPath)
         let fileList: string[] = []
         list.forEach(a => {
             let filePath = path.join(dirPath, a)
             let fileState = fs.statSync(filePath)
             if (fileState.isDirectory()) {
-                fileList = fileList.concat(this.getFileListInFolder(filePath))
+                fileList = fileList.concat(this.getAllFileListInDir(filePath))
             } else {
-                if ((filePath.endsWith('.ts') || filePath.endsWith('js')) && !filePath.endsWith('.d.ts')) {
-                    fileList.push(filePath)
-                }
+                fileList.push(filePath)
             }
         })
         return fileList
+    }
+
+    /**
+     * 获取指定文件夹下所有文件列表，不包含文件夹以及子文件夹内的文件
+     * @param dirPath 指定的文件夹
+     */
+    static getDirListInDir(dirPath: string) {
+        let list = fs.readdirSync(dirPath)
+        return list.filter(a => {
+            let filePath = path.join(dirPath, a)
+            let fileState = fs.statSync(filePath)
+            return fileState.isDirectory()
+        })
+    }
+
+    /**
+     * 获取指定文件夹下的所有子文件夹，不包含文件以及子文件夹内的文件夹
+     * @param dirPath 指定的文件夹
+     */
+    static getFileListInDir(dirPath: string) {
+        let list = fs.readdirSync(dirPath)
+        return list.filter(a => {
+            let filePath = path.join(dirPath, a)
+            let fileState = fs.statSync(filePath)
+            return fileState.isFile()
+        })
     }
 
     private static getValidator(obj: any) {
@@ -85,16 +109,24 @@ export class Utils {
         return process.env.dogEntry || process.mainModule.filename
     }
 
+    private static appRootPath: string
     static getAppRootPath() {
-        return path.resolve(Utils.getEntryFilename(), '..', '..')
+        if (!this.appRootPath) {
+            this.appRootPath = path.resolve(Utils.getEntryFilename(), '..', '..')
+        }
+        return this.appRootPath
     }
 
+    private static execRootPath: string
     static getExecRootPath() {
-        if (Utils.getEntryFilename().endsWith('.ts')) {
-            return path.join(this.getAppRootPath(), 'src')
-        } else {
-            return path.join(this.getAppRootPath(), 'bin')
+        if (!this.execRootPath) {
+            if (Utils.getEntryFilename().endsWith('.ts')) {
+                this.execRootPath = path.join(this.getAppRootPath(), 'src')
+            } else {
+                this.execRootPath = path.join(this.getAppRootPath(), 'bin')
+            }
         }
+        return this.execRootPath
     }
 
     static getConfigFilename(configName: string) {
@@ -108,10 +140,7 @@ export class Utils {
     static getConfigValue<T>(target: new (...args: any[]) => T): [T, string] {
         let configName = target.prototype.$configName
         let configFilePath = Utils.getConfigFilename(configName)
-        let originalVal = null
-        try {
-            originalVal = require(configFilePath)
-        } catch{ }
+        let originalVal = this.tryRequire(configFilePath)
         let sectionArr = target.prototype.$configField.split('.').filter((a: any) => a)
         for (let a of sectionArr) {
             if (originalVal == null) {
@@ -120,5 +149,13 @@ export class Utils {
             originalVal = originalVal[a]
         }
         return [DogUtils.getTypeSpecifiedValue(target, originalVal, new target()), configFilePath]
+    }
+
+    static tryRequire(filePath: string) {
+        try {
+            return require(filePath)
+        } catch (error) {
+            return null
+        }
     }
 }

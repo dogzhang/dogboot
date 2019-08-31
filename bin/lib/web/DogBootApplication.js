@@ -25,6 +25,7 @@ const ActionFilterContext_1 = require("./ActionFilterContext");
 const LazyResult_1 = require("./LazyResult");
 const APIDocController_1 = require("./APIDocController");
 const NotFoundException_1 = require("./NotFoundException");
+const Area_1 = require("./Area");
 class DogBootApplication {
     constructor() {
         this.app = new Koa();
@@ -42,50 +43,56 @@ class DogBootApplication {
             this.app.use(cors(this.opts.corsOptions));
         }
         let controllerRootPath = path.join(Utils_1.Utils.getExecRootPath(), this.opts.controllerRootPathName);
-        let spiltStr = '/';
-        if (process.platform == 'win32') {
-            spiltStr = '\\';
-        }
-        Utils_1.Utils.getFileListInFolder(controllerRootPath).forEach(a => {
-            let classDir = path.resolve(a, '..');
-            let areaPrefix = path.relative(controllerRootPath, classDir).split(spiltStr).filter(b => b).join('/');
-            if (areaPrefix) {
-                areaPrefix = '/' + areaPrefix;
+        this.area = new Area_1.Area(controllerRootPath, '/');
+        this.checkControllerDir(this.area);
+    }
+    checkControllerDir(area) {
+        let list = fs.readdirSync(area.dirPath);
+        list.forEach(a => {
+            let filePath = path.join(area.dirPath, a);
+            let fileState = fs.statSync(filePath);
+            if (fileState.isFile()) {
+                let _Module = Utils_1.Utils.tryRequire(filePath);
+                _Module && Object.values(_Module).filter(b => b instanceof Function && b.prototype.$isController)
+                    .forEach((b) => {
+                    area.controllerList.push(b);
+                    this.checkControllerClass(area.areaPath, b);
+                });
             }
-            let _Module = require(a);
-            Object.values(_Module).filter(b => b instanceof Function && b.prototype.$isController)
-                .forEach((b) => {
-                this.checkControllerClass(areaPrefix, b);
-                this.controllerClasses.push(b);
-            });
+            else if (fileState.isDirectory()) {
+                let areaPath = (area.areaPath + '/' + a).replace(/^\/\//, '/');
+                let subArea = new Area_1.Area(filePath, areaPath);
+                area.subAreaList.push(subArea);
+                this.checkControllerDir(subArea);
+            }
         });
     }
-    checkControllerClass(areaPrefix, _Class) {
-        let prefix = areaPrefix + _Class.prototype.$path;
-        let router = new Router();
-        Object.getOwnPropertyNames(_Class.prototype).forEach(c => {
-            this.checkAndHandleActionName(c, _Class, router, prefix);
+    checkControllerClass(areaPath, _Class) {
+        let router = new Router({
+            prefix: this.opts.prefix + (areaPath == '/' ? '' : areaPath) + _Class.prototype.$path
         });
-        if (this.opts.prefix) {
-            router.prefix(this.opts.prefix);
-        }
+        Object.getOwnPropertyNames(_Class.prototype).forEach(a => {
+            this.checkAndHandleActionName(a, _Class, router, areaPath);
+        });
         this.app.use(router.routes());
     }
-    checkAndHandleActionName(actionName, _Class, router, prefix) {
+    checkAndHandleActionName(actionName, _Class, router, areaPath) {
         let _prototype = _Class.prototype;
         let action = _prototype[actionName];
         if (!action.$method) {
             return;
         }
-        router[action.$method](prefix + action.$path, (ctx) => __awaiter(this, void 0, void 0, function* () {
+        router[action.$method](action.$path, (ctx) => __awaiter(this, void 0, void 0, function* () {
             try {
                 yield this.handleContext(actionName, _Class, ctx);
             }
             catch (err) {
-                let exceptionFilter = _prototype[actionName].$exceptionFilter || _prototype.$exceptionFilter || this.globalExceptionFilter;
-                let handlerName = this.getExceptionHandlerName(exceptionFilter, err.__proto__.constructor);
+                let filtersOnController = _prototype.$exceptionFilters || [];
+                let filtersOnAction = _prototype[actionName].$exceptionFilters || [];
+                let filters = this.globalExceptionFilters.concat(filtersOnController, filtersOnAction).reverse();
+                let [exceptionFilter, handlerName] = this.getExceptionHandlerName(err.__proto__.constructor, areaPath, filters);
                 if (!handlerName) {
-                    handlerName = this.getExceptionHandlerName(exceptionFilter, Error);
+                    [exceptionFilter, handlerName] = this.getExceptionHandlerName(Error, areaPath, filters);
                 }
                 if (!handlerName) {
                     throw err;
@@ -116,14 +123,14 @@ class DogBootApplication {
                 Utils_1.Utils.validateModel(b);
             }
             let actionFilterContext = new ActionFilterContext_1.ActionFilterContext(ctx, params, $paramTypes, _Class, actionName);
-            let actionFiltersOnController = _prototype.$actionFilters || [];
-            let actionFiltersOnAction = instance[actionName].$actionFilters || [];
-            let actionFilters = this.globalActionFilters.concat(actionFiltersOnController, actionFiltersOnAction);
-            let actionFilterAndInstances = [];
-            for (let actionFilter of actionFilters) {
-                let filterInstance = yield this.container.getComponentInstanceFromFactory(actionFilter);
-                actionFilterAndInstances.push([actionFilter, filterInstance]);
-                let handlerName = actionFilter.prototype.$actionHandlerMap.get(Component_1.DoBefore);
+            let filtersOnController = _prototype.$actionFilters || [];
+            let filtersOnAction = instance[actionName].$actionFilters || [];
+            let filters = this.globalActionFilters.concat(filtersOnController, filtersOnAction);
+            let filterAndInstances = [];
+            for (let filter of filters) {
+                let filterInstance = yield this.container.getComponentInstanceFromFactory(filter);
+                filterAndInstances.push([filter, filterInstance]);
+                let handlerName = filter.prototype.$actionHandlerMap.get(Component_1.DoBefore);
                 if (!handlerName) {
                     continue;
                 }
@@ -143,8 +150,8 @@ class DogBootApplication {
                     }
                 }
             }
-            for (let [actionFilter, filterInstance] of actionFilterAndInstances.reverse()) {
-                let handlerName = actionFilter.prototype.$actionHandlerMap.get(Component_1.DoAfter);
+            for (let [filter, filterInstance] of filterAndInstances.reverse()) {
+                let handlerName = filter.prototype.$actionHandlerMap.get(Component_1.DoAfter);
                 if (!handlerName) {
                     continue;
                 }
@@ -152,18 +159,17 @@ class DogBootApplication {
             }
         });
     }
-    getExceptionHandlerName(exceptionFilter, exceptionType) {
-        if (!exceptionFilter) {
-            return null;
+    getExceptionHandlerName(exceptionType, area, filters) {
+        for (let a of filters) {
+            if (a.prototype.$isGlobalExceptionFilter && !area.startsWith(a.prototype.$area)) {
+                continue;
+            }
+            let handlerName = a.prototype.$exceptionHandlerMap.get(exceptionType);
+            if (handlerName) {
+                return [a, handlerName];
+            }
         }
-        if (!exceptionFilter.prototype.$exceptionHandlerMap) {
-            return null;
-        }
-        let handlerName = exceptionFilter.prototype.$exceptionHandlerMap.get(exceptionType);
-        if (!handlerName) {
-            return null;
-        }
-        return handlerName;
+        return [];
     }
     handlerException(exceptionFilter, handlerName, err, ctx) {
         return __awaiter(this, void 0, void 0, function* () {
@@ -177,11 +183,11 @@ class DogBootApplication {
             if (!fs.existsSync(startupRootPath)) {
                 return;
             }
-            let startUpFileList = Utils_1.Utils.getFileListInFolder(startupRootPath);
+            let startUpFileList = Utils_1.Utils.getAllFileListInDir(startupRootPath);
             let startUpClassList = [];
             for (let filePath of startUpFileList) {
-                let _Module = require(filePath);
-                Object.values(_Module).forEach(a => {
+                let _Module = Utils_1.Utils.tryRequire(filePath);
+                _Module && Object.values(_Module).forEach(a => {
                     if (a instanceof Function) {
                         startUpClassList.push(a);
                     }
@@ -193,10 +199,13 @@ class DogBootApplication {
             }
         });
     }
-    initComponents() {
+    initControllers(area) {
         return __awaiter(this, void 0, void 0, function* () {
-            for (let componentClass of this.controllerClasses) {
-                yield this.container.getComponentInstanceFromFactory(componentClass);
+            for (let controllerClass of area.controllerList) {
+                yield this.container.getComponentInstanceFromFactory(controllerClass);
+            }
+            for (let subArea of area.subAreaList) {
+                yield this.initControllers(subArea);
             }
         });
     }
@@ -206,23 +215,23 @@ class DogBootApplication {
             if (!fs.existsSync(filterRootPath)) {
                 return;
             }
-            let filterFileList = Utils_1.Utils.getFileListInFolder(filterRootPath);
+            let filterFileList = Utils_1.Utils.getAllFileListInDir(filterRootPath);
             let filterClassList = [];
             for (let filePath of filterFileList) {
-                let _Module = require(filePath);
-                Object.values(_Module).forEach(a => {
+                let _Module = Utils_1.Utils.tryRequire(filePath);
+                _Module && Object.values(_Module).forEach(a => {
                     if (a instanceof Function) {
                         filterClassList.push(a);
                     }
                 });
             }
             this.globalActionFilters = filterClassList.filter(a => a.prototype.$isGlobalActionFilter).sort((a, b) => b.prototype.$order - a.prototype.$order);
-            this.globalExceptionFilter = filterClassList.find(a => a.prototype.$isGlobalExceptionFilter);
+            this.globalExceptionFilters = filterClassList.filter(a => a.prototype.$isGlobalExceptionFilter);
             for (let filter of this.globalActionFilters) {
                 yield this.container.getComponentInstanceFromFactory(filter);
             }
-            if (this.globalExceptionFilter) {
-                yield this.container.getComponentInstanceFromFactory(this.globalExceptionFilter);
+            for (let filter of this.globalExceptionFilters) {
+                yield this.container.getComponentInstanceFromFactory(filter);
             }
         });
     }
@@ -234,8 +243,7 @@ class DogBootApplication {
     }
     useNotFoundExceptionHandler() {
         this.app.use((ctx) => __awaiter(this, void 0, void 0, function* () {
-            let exceptionFilter = this.globalExceptionFilter;
-            let handlerName = this.getExceptionHandlerName(exceptionFilter, NotFoundException_1.NotFoundException);
+            let [exceptionFilter, handlerName] = this.getExceptionHandlerName(NotFoundException_1.NotFoundException, '/', this.globalExceptionFilters);
             if (!handlerName) {
                 return;
             }
@@ -255,10 +263,9 @@ class DogBootApplication {
     runAsync() {
         return __awaiter(this, void 0, void 0, function* () {
             let startTime = Date.now();
-            this.globalExceptionFilter = null;
+            this.globalExceptionFilters = [];
             this.globalActionFilters = [];
             this.requestHandler = null;
-            this.controllerClasses = [];
             this.container.setComponentInstance(DogBootApplication, this);
             this.container.setComponentInstance(DIContainer_1.DIContainer, this.container);
             this.app.middleware = [];
@@ -280,7 +287,7 @@ class DogBootApplication {
                 this.server.close();
             }
             yield this.startUp();
-            yield this.initComponents();
+            yield this.initControllers(this.area);
             yield this.initFilters();
             this.server.listen(port);
             let endTime = Date.now();
@@ -297,12 +304,12 @@ class DogBootApplication {
             console.log('Running tests...');
             let startTime = Date.now();
             let testRootPath = path.join(Utils_1.Utils.getExecRootPath(), this.opts.testRootPathName);
-            let testFileList = Utils_1.Utils.getFileListInFolder(testRootPath);
+            let testFileList = Utils_1.Utils.getAllFileListInDir(testRootPath);
             let testClassList = [];
             for (let testFile of testFileList) {
                 try {
-                    let _Module = require(testFile);
-                    Object.values(_Module).filter(b => b instanceof Function && b.prototype.$isTest)
+                    let _Module = Utils_1.Utils.tryRequire(testFile);
+                    _Module && Object.values(_Module).filter(b => b instanceof Function && b.prototype.$isTest)
                         .forEach((b) => {
                         testClassList.push(b);
                     });

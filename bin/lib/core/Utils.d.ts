@@ -8,10 +8,20 @@ export declare class Utils {
      */
     static markAsComponent(target: new (...args: any[]) => {}): void;
     /**
-     * 获取指定目录下js或者ts文件列表
-     * @param dirPath 指定的目录
+     * 递归获取指定文件夹下所有文件列表
+     * @param dirPath 指定的文件夹
      */
-    static getFileListInFolder(dirPath: string): string[];
+    static getAllFileListInDir(dirPath: string): string[];
+    /**
+     * 获取指定文件夹下所有文件列表，不包含文件夹以及子文件夹内的文件
+     * @param dirPath 指定的文件夹
+     */
+    static getDirListInDir(dirPath: string): string[];
+    /**
+     * 获取指定文件夹下的所有子文件夹，不包含文件以及子文件夹内的文件夹
+     * @param dirPath 指定的文件夹
+     */
+    static getFileListInDir(dirPath: string): string[];
     private static getValidator;
     /**
      * 验证模型是否合法，第一个不合法的字段会导致此方法抛出异常IllegalArgumentException
@@ -20,7 +30,9 @@ export declare class Utils {
     static validateModel(model: any): void;
     static sleep(milliseconds: number): Promise<unknown>;
     static getEntryFilename(): string;
+    private static appRootPath;
     static getAppRootPath(): string;
+    private static execRootPath;
     static getExecRootPath(): string;
     static getConfigFilename(configName: string): string;
     /**
@@ -28,4 +40,5 @@ export declare class Utils {
      * @param target 配置类型
      */
     static getConfigValue<T>(target: new (...args: any[]) => T): [T, string];
+    static tryRequire(filePath: string): any;
 }
