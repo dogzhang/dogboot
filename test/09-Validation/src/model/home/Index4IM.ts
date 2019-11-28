@@ -1,4 +1,4 @@
-import { Typed, Length } from "../../../../../bin/index";
+import { Length, Typed } from '../../../../../bin/index';
 
 export class Index4IM {
     @Length(2, 4)

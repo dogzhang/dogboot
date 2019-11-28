@@ -9,6 +9,22 @@
             "request": "launch",
             "name": "Debug JS",
             "program": "${workspaceFolder}/bin/app.js"
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Debug ts",
+            "args": [
+                "${workspaceFolder}/test/05-Component/src/app.ts"
+            ],
+            "runtimeArgs": [
+                "--nolazy",
+                "-r",
+                "ts-node/register"
+            ],
+            "cwd": "${workspaceRoot}",
+            "protocol": "inspector",
+            "outputCapture": "std"
         }
     ]
 }

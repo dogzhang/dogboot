@@ -1,4 +1,4 @@
-import { Component } from "../../../../bin/index";
+import { Component } from '../../../../bin/index';
 
 @Component
 export class MyService3 {

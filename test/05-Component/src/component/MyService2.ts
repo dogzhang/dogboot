@@ -1,5 +1,5 @@
-import { Component } from "../../../../bin/index";
-import { MyService3 } from "./MyService3";
+import { Component } from '../../../../bin/index';
+import { MyService3 } from './MyService3';
 
 @Component
 export class MyService2 {

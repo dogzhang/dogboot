@@ -1,4 +1,4 @@
-import { DoBefore, ActionFilterContext, ActionFilter } from "../../../../bin/index";
+import { ActionFilter, ActionFilterContext, DoBefore } from '../../../../bin/index';
 
 @ActionFilter
 export class MyActionFilter {

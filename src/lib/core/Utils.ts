@@ -1,9 +1,10 @@
 import fs = require('fs');
 import path = require('path');
-import { DogUtils } from './DogUtils';
+import { TypeSpecifiedMap } from './TypeSpecifiedMap';
+import { TypeSpecifiedType } from './TypeSpecifiedType';
 
 /**
- * 仅仅被dogboot使用的内部工具方法
+ * 一些工具方法
  */
 export class Utils {
     /**
@@ -11,13 +12,13 @@ export class Utils {
      * @param target 目标类型
      */
     static markAsComponent(target: new (...args: any[]) => {}) {
-        target.prototype.$isComponent = true
+        Reflect.defineMetadata('$isComponent', true, target.prototype)
         let paramTypes: Array<Function> = Reflect.getMetadata('design:paramtypes', target) || []
         if (paramTypes.includes(target)) {
             console.error(`${target.name}中存在自我依赖`)
             process.abort()
         }
-        target.prototype.$paramTypes = paramTypes
+        Reflect.defineMetadata('$paramTypes', paramTypes, target.prototype)
     }
 
     /**
@@ -66,7 +67,7 @@ export class Utils {
     }
 
     private static getValidator(obj: any) {
-        return obj != null && obj.__proto__ && obj.__proto__.$validator
+        return obj != null && obj.__proto__ && Reflect.getMetadata('$validator', obj.__proto__)
     }
 
     /**
@@ -129,33 +130,101 @@ export class Utils {
         return this.execRootPath
     }
 
-    static getConfigFilename(configName: string) {
-        return path.join(this.getAppRootPath(), configName)
+    static getConfigFilename() {
+        return path.join(this.getAppRootPath(), 'config.json')
     }
 
     /**
      * 获取配置值
      * @param target 配置类型
      */
-    static getConfigValue<T>(target: new (...args: any[]) => T): [T, string] {
-        let configName = target.prototype.$configName
-        let configFilePath = Utils.getConfigFilename(configName)
+    static getConfigValue<T>(target: new (...args: any[]) => T): T {
+        let configFilePath = Utils.getConfigFilename()
         let originalVal = this.tryRequire(configFilePath)
-        let sectionArr = target.prototype.$configField.split('.').filter((a: any) => a)
-        for (let a of sectionArr) {
-            if (originalVal == null) {
-                break
-            }
-            originalVal = originalVal[a]
-        }
-        return [DogUtils.getTypeSpecifiedValue(target, originalVal, new target()), configFilePath]
+        let newVal = Utils.getValBySectionStr(originalVal, Reflect.getMetadata('$configField', target.prototype))
+        return Utils.getTypeSpecifiedValue(target, newVal, new target())
     }
 
     static tryRequire(filePath: string) {
+        if (filePath.endsWith('.map') || filePath.endsWith('.d.ts')) {
+            return null
+        }
         try {
             return require(filePath)
         } catch (error) {
             return null
         }
+    }
+
+    static getValBySectionArr(originalVal: any, sectionArr: string[]) {
+        let newVal = originalVal
+        for (let a of sectionArr) {
+            if (newVal == null) {
+                break
+            }
+            newVal = newVal[a]
+        }
+
+        return newVal
+    }
+
+    static getValBySectionStr(originalVal: any, keysStr: string) {
+        let sectionArr = keysStr.split('.').filter(a => a)
+        return Utils.getValBySectionArr(originalVal, sectionArr)
+    }
+
+    /**
+     * 获取指定类型的对象
+     * @param type 指定的类型
+     * @param sourceVal 原始对象
+     * @param valIfNull 如果originalVal == null则返回的值
+     */
+    static getTypeSpecifiedValue<T>(type: Function | (new (...args: any[]) => T), sourceVal: any, valIfNull: T = null): T {
+        if (sourceVal == null) {
+            return valIfNull
+        }
+        switch (type) {
+            case Number:
+            case Boolean:
+                return type(sourceVal)
+            case String:
+                return type(sourceVal).trim()
+            case Date:
+                return new Date(sourceVal) as any
+            default:
+                let newVal = Reflect.construct(type, [])
+                let sourceFields = Reflect.getMetadata('$sourceFields', type.prototype) || {}
+                for (let sourceField in sourceVal) {
+                    let sourceFieldVal = sourceVal[sourceField]
+                    let typeSpecifiedMap: TypeSpecifiedMap = sourceFields[sourceField] as TypeSpecifiedMap
+                    if (typeSpecifiedMap == null) {
+                        newVal[sourceField] = sourceFieldVal
+                    } else {
+                        let targetField = typeSpecifiedMap.targetName
+                        if (typeSpecifiedMap.typeSpecifiedType == TypeSpecifiedType.General) {
+                            newVal[targetField] = this.getTypeSpecifiedValue(typeSpecifiedMap.type, sourceFieldVal)
+                        } else if (typeSpecifiedMap.typeSpecifiedType == TypeSpecifiedType.Array) {
+                            if (Array.isArray(sourceFieldVal)) {
+                                newVal[targetField] = sourceFieldVal.map((a: any) => this.getTypeSpecifiedValue(typeSpecifiedMap.type, a))
+                            } else {
+                                newVal[targetField] = null
+                            }
+                        }
+                    }
+                }
+                return newVal
+        }
+    }
+
+    /**
+     * 获取指定类型的数组对象
+     * @param type 指定的类型
+     * @param originalVal 原始对象
+     */
+    static getTypeSpecifiedValueArray<T>(type: Function | (new (...args: any[]) => T), originalVal: any[], valIfNull: T[] = null): T[] {
+        if (originalVal == null) {
+            return valIfNull
+        }
+        return originalVal.map(a => this.getTypeSpecifiedValue(type, a))
     }
 }

@@ -1,7 +1,7 @@
-import { Controller, GetMapping } from "../../../../bin/index";
-import { MyStartUp } from "../startup/MyStartUp";
-import { MyStartUp1 } from "../startup/MyStartUp1";
-import { MyStartUp2 } from "../startup/MyStartUp2";
+import { Controller, GetMapping } from '../../../../bin/index';
+import { MyStartUp } from '../startup/MyStartUp';
+import { MyStartUp1 } from '../startup/MyStartUp1';
+import { MyStartUp2 } from '../startup/MyStartUp2';
 
 @Controller()
 export class HomeController {

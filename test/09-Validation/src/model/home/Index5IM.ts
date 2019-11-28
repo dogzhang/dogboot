@@ -1,4 +1,4 @@
-import { Typed, MinLength } from "../../../../../bin/index";
+import { MinLength, Typed } from '../../../../../bin/index';
 
 export class Index5IM {
     @MinLength(2)

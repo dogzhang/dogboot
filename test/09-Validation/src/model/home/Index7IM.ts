@@ -1,4 +1,4 @@
-import { Typed, Range } from "../../../../../bin/index";
+import { Range, Typed } from '../../../../../bin/index';
 
 export class Index7IM {
     @Range(2, 4)

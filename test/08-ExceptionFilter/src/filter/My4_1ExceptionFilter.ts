@@ -1,4 +1,4 @@
-import { ExceptionHandler, ExceptionFilter } from "../../../../bin/index";
+import { ExceptionFilter, ExceptionHandler } from '../../../../bin/index';
 
 @ExceptionFilter
 export class My4_1ExceptionFilter {

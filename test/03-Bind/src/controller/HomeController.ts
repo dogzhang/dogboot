@@ -1,5 +1,8 @@
 import Koa = require('koa');
-import { Controller, GetMapping, BindQuery, BindPath, PostMapping, BindBody, BindContext, BindRequest, BindResponse } from "../../../../bin/index";
+import {
+    BindBody, BindContext, BindHeader, BindPath, BindQuery, BindRequest, BindResponse, Controller,
+    GetMapping, PostMapping
+} from '../../../../bin/index';
 
 @Controller()
 export class HomeController {
@@ -31,5 +34,10 @@ export class HomeController {
     @GetMapping()
     index5(@BindResponse res: Koa.Response) {
         res.body = 1
+    }
+
+    @GetMapping()
+    index6(@BindHeader('ticket') ticket: string) {
+        return ticket
     }
 }

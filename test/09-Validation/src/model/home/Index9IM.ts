@@ -1,4 +1,4 @@
-import { Typed, Max } from "../../../../../bin/index";
+import { Max, Typed } from '../../../../../bin/index';
 
 export class Index9IM {
     @Max(4)

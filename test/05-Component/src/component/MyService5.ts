@@ -1,5 +1,5 @@
-import { Component, Autowired } from "../../../../bin/index";
-import { MyService4 } from "./MyService4";
+import { Autowired, Component } from '../../../../bin/index';
+import { MyService4 } from './MyService4';
 
 @Component
 export class MyService5 {

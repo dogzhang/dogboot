@@ -1,4 +1,4 @@
-import { Component, Init } from "../../../../bin/index";
+import { Component, Init } from '../../../../bin/index';
 
 @Component
 export class MyService8 {

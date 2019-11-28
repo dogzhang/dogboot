@@ -1,4 +1,4 @@
-import { Utils } from "./Utils";
+import { Utils } from './Utils';
 
 /**
  * 指定此类为组件，生命周期将完全交给dogboot管理
@@ -17,8 +17,8 @@ export function Component(target: new (...args: any[]) => {}) {
  */
 export function StartUp(order: number = 0) {
     return function (target: new (...args: any[]) => {}) {
-        target.prototype.$isStartUp = true
-        target.prototype.$order = order
+        Reflect.defineMetadata('$isStartUp', true, target.prototype)
+        Reflect.defineMetadata('$order', order, target.prototype)
         Utils.markAsComponent(target)
     }
 }
@@ -33,14 +33,16 @@ export function StartUp(order: number = 0) {
  *     5、低优先级ActionFilter.DoAfter
  * 任何DoBefore导致ctx.status != 404都将阻止后续步骤的执行，但是Controller.Action执行成功后后续的DoAfter都会执行
  * ActionFilter是一种特殊的Component
- * @param order 优先级，值越大优先级越高
- * @param area 作用域限制，比如：/app，表示对controller/app内的控制器生效；/app/v1，则进一步深入到app下的v1文件夹，默认为空表示对所有控制器有效
+ * @param opts order：优先级，值越大优先级越高，scope：作用域，匹配ctx.path，默认'/'表示作用于全部action
  */
-export function GlobalActionFilter(order: number = 0, area: string = '/') {
+export function GlobalActionFilter(opts?: { order?: number, scope?: string }) {
     return function (target: new (...args: any[]) => {}) {
-        target.prototype.$isGlobalActionFilter = true
-        target.prototype.$order = order
-        target.prototype.$area = area
+        opts = opts || {}
+        opts.order = opts.order ?? 0
+        opts.scope = opts.scope ?? '/'
+        Reflect.defineMetadata('$isGlobalActionFilter', true, target.prototype)
+        Reflect.defineMetadata('$order', opts.order, target.prototype)
+        Reflect.defineMetadata('$scope', opts.scope, target.prototype)
         Utils.markAsComponent(target)
     }
 }
@@ -51,7 +53,7 @@ export function GlobalActionFilter(order: number = 0, area: string = '/') {
  * 配合UseActionFilter来使用
  */
 export function ActionFilter(target: new (...args: any[]) => {}) {
-    target.prototype.$isActionFilter = true
+    Reflect.defineMetadata('$isActionFilter', true, target.prototype)
     Utils.markAsComponent(target)
 }
 
@@ -59,12 +61,14 @@ export function ActionFilter(target: new (...args: any[]) => {}) {
  * 标记此类为全局异常过滤器，此类将会被dogboot自动扫描到并且应用到所有的控制器以及其Action
  * 注意，ExceptionFilter的顺序没有明确规定，只能被一个处理器匹配到
  * ExceptionFilter是一种特殊的Component
- * @param area 作用域限制，比如：/app，表示对controller/app内的控制器生效；/app/v1，则进一步深入到app下的v1文件夹，默认为空表示对所有控制器有效
+ * @param scope 作用域限制，匹配ctx.path，默认'/'表示作用与全部action
  */
-export function GlobalExceptionFilter(area: string = '/') {
+export function GlobalExceptionFilter(opts?: { scope?: string }) {
     return function (target: new (...args: any[]) => {}) {
-        target.prototype.$isGlobalExceptionFilter = true
-        target.prototype.$area = area
+        opts = opts || {}
+        opts.scope = opts.scope ?? '/'
+        Reflect.defineMetadata('$isGlobalExceptionFilter', true, target.prototype)
+        Reflect.defineMetadata('$scope', opts.scope, target.prototype)
         Utils.markAsComponent(target)
     }
 }
@@ -75,7 +79,7 @@ export function GlobalExceptionFilter(area: string = '/') {
  * 配合UseExceptionFilter来使用
  */
 export function ExceptionFilter(target: new (...args: any[]) => {}) {
-    target.prototype.$isExceptionFilter = true
+    Reflect.defineMetadata('$isExceptionFilter', true, target.prototype)
     Utils.markAsComponent(target)
 }
 
@@ -87,9 +91,9 @@ export function ExceptionFilter(target: new (...args: any[]) => {}) {
 export function Config(opts?: { name?: string, field?: string }) {
     return function (target: new (...args: any[]) => {}) {
         opts = opts || {}
-        target.prototype.$isConfig = true
-        target.prototype.$configField = opts.field || ''
-        target.prototype.$configName = opts.name || 'config.json'
+        Reflect.defineMetadata('$isConfig', true, target.prototype)
+        Reflect.defineMetadata('$configField', opts.field || '', target.prototype)
+        Reflect.defineMetadata('$configName', opts.name || 'config.json', target.prototype)
         Utils.markAsComponent(target)
     }
 }
@@ -104,16 +108,18 @@ export function Autowired(type: (new (...args: any[]) => {}) | (() => new (...ar
             console.error(`${target.constructor.name}中存在不正确的循环依赖${name}，请使用@Autowired(() => type of ${name})注入此依赖项`)
             process.abort()
         }
-        target.$autowiredMap = target.$autowiredMap || new Map()
-        target.$autowiredMap.set(name, type)
+
+        let $autowiredMap = Reflect.getMetadata('$autowiredMap', target) || new Map()
+        $autowiredMap.set(name, type)
+        Reflect.defineMetadata('$autowiredMap', $autowiredMap, target)
     }
 }
 
 /**
- * 在组件中标记一个方法，使其在组件初始化时执行，支持异步方法
+ * 在组件中标记一个方法，使其在组件初始化时执行，支持异步方法，并且会传入热更新前的实例作为参数
  */
 export function Init(target: any, name: string) {
-    target.$initMethod = name
+    Reflect.defineMetadata('$initMethod', name, target)
 }
 
 /**
@@ -123,17 +129,18 @@ export function Init(target: any, name: string) {
  */
 export function UseActionFilter(actionFilter: new (...args: any[]) => {}) {
     return function (target: any, name: string = null) {
-        if (!actionFilter.prototype.$isActionFilter) {
+        if (!Reflect.getMetadata('$isActionFilter', actionFilter.prototype)) {
             console.warn(`UseActionFilter只能使用ActionFilter，此actionFilter不符合要求，${actionFilter.name}将不会生效`)
             return
         }
         if (name == null) {
-            target.prototype.$actionFilters = target.prototype.$actionFilters || []
-            target.prototype.$actionFilters.unshift(actionFilter)
+            let $actionFilters = Reflect.getMetadata('$actionFilters', target.prototype) || []
+            $actionFilters.unshift(actionFilter)
+            Reflect.defineMetadata('$actionFilters', $actionFilters, target.prototype)
         } else {
-            let action = target[name]
-            action.$actionFilters = action.$actionFilters || []
-            action.$actionFilters.unshift(actionFilter)
+            let $actionFilters = Reflect.getMetadata('$actionFilters', target, name) || []
+            $actionFilters.unshift(actionFilter)
+            Reflect.defineMetadata('$actionFilters', $actionFilters, target, name)
         }
     }
 }
@@ -142,16 +149,18 @@ export function UseActionFilter(actionFilter: new (...args: any[]) => {}) {
  * 在ActionFilter标记一个方法，此方法将在Action执行前执行
  */
 export function DoBefore(target: any, name: string) {
-    target.$actionHandlerMap = target.$actionHandlerMap || new Map()
-    target.$actionHandlerMap.set(DoBefore, name)
+    let $actionHandlerMap = Reflect.getMetadata('$actionHandlerMap', target) || new Map()
+    $actionHandlerMap.set(DoBefore, name)
+    Reflect.defineMetadata('$actionHandlerMap', $actionHandlerMap, target)
 }
 
 /**
  * 在ActionFilter标记一个方法，此方法将在Action执行后执行
  */
 export function DoAfter(target: any, name: string) {
-    target.$actionHandlerMap = target.$actionHandlerMap || new Map()
-    target.$actionHandlerMap.set(DoAfter, name)
+    let $actionHandlerMap = Reflect.getMetadata('$actionHandlerMap', target) || new Map()
+    $actionHandlerMap.set(DoAfter, name)
+    Reflect.defineMetadata('$actionHandlerMap', $actionHandlerMap, target)
 }
 
 /**
@@ -161,17 +170,18 @@ export function DoAfter(target: any, name: string) {
  */
 export function UseExceptionFilter(exceptionFilter: new (...args: any[]) => {}) {
     return function (target: any, name: string = null) {
-        if (!exceptionFilter.prototype.$isExceptionFilter) {
+        if (!Reflect.getMetadata('$isExceptionFilter', exceptionFilter.prototype)) {
             console.warn(`UseExceptionFilter只能使用ExceptionFilter，此exceptionFilter不符合要求，${exceptionFilter.name}将不会生效`)
             return
         }
         if (name == null) {
-            target.prototype.$exceptionFilters = target.prototype.$exceptionFilters || []
-            target.prototype.$exceptionFilters.unshift(exceptionFilter)
+            let $exceptionFilters = Reflect.getMetadata('$exceptionFilters', target.prototype) || []
+            $exceptionFilters.unshift(exceptionFilter)
+            Reflect.defineMetadata('$exceptionFilters', $exceptionFilters, target.prototype)
         } else {
-            let action = target[name]
-            action.$exceptionFilters = action.$exceptionFilters || []
-            action.$exceptionFilters.unshift(exceptionFilter)
+            let $exceptionFilters = Reflect.getMetadata('$exceptionFilters', target, name) || []
+            $exceptionFilters.unshift(exceptionFilter)
+            Reflect.defineMetadata('$exceptionFilters', $exceptionFilters, target, name)
         }
     }
 }
@@ -182,17 +192,10 @@ export function UseExceptionFilter(exceptionFilter: new (...args: any[]) => {}) 
  */
 export function ExceptionHandler(type: new (...args: any[]) => Error | any) {
     return function (target: any, name: string) {
-        target.$exceptionHandlerMap = target.$exceptionHandlerMap || new Map()
-        target.$exceptionHandlerMap.set(type, name)
+        let $exceptionHandlerMap = Reflect.getMetadata('$exceptionHandlerMap', target) || new Map()
+        $exceptionHandlerMap.set(type, name)
+        Reflect.defineMetadata('$exceptionHandlerMap', $exceptionHandlerMap, target)
     }
-}
-
-/**
- * 标记此字段在reload的时候，保持在内存中并且继承到新的实例
- */
-export function KeepAlive(target: any, name: string) {
-    target.$aliveFields = target.$aliveFields || []
-    target.$aliveFields.push(name)
 }
 
 /**
@@ -200,7 +203,7 @@ export function KeepAlive(target: any, name: string) {
  * 所有的测试类都必须放在test目录，或者另外指定的目录
  */
 export function Test(target: new (...args: any[]) => {}) {
-    target.prototype.$isTest = true
+    Reflect.defineMetadata('$isTest', true, target.prototype)
     Utils.markAsComponent(target)
 }
 
@@ -209,6 +212,7 @@ export function Test(target: new (...args: any[]) => {}) {
  * 仅能在Test类中使用
  */
 export function Spec(target: any, name: string) {
-    target.$testMethods = target.$testMethods || []
-    target.$testMethods.push(name)
+    let $testMethods = Reflect.getMetadata('$testMethods', target) || []
+    $testMethods.push(name)
+    Reflect.defineMetadata('$testMethods', $testMethods, target)
 }

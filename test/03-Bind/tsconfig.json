@@ -3,8 +3,8 @@
       "module": "commonjs",
       "emitDecoratorMetadata": true,
       "experimentalDecorators": true,
-      "target": "esnext",
-      "lib": ["es2017"],
+      "target": "es6",
+      "lib": ["esnext"],
       "outDir": "bin"
     },
     "include": ["./"]

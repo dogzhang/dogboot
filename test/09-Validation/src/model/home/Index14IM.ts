@@ -1,4 +1,4 @@
-import { Typed, Func } from "../../../../../bin/index";
+import { Func, Typed } from '../../../../../bin/index';
 
 export class Index14IM {
     @Func((a: string) => {

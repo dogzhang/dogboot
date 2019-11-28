@@ -1,11 +1,11 @@
 {
-    "typescript.tsdk": "node_modules/typescript/lib",
     "search.exclude": {
         ".*": true,
         "bin": true,
         "package-lock.json": true
     },
     "files.exclude": {
-        "node_modules": true
+        "node_modules": true,
+        ".VSCodeCounter": true
     }
 }

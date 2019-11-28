@@ -1,18 +1,18 @@
-import { Controller, GetMapping, PostMapping, BindBody } from "../../../../bin/index";
-import { Index1IM } from "../model/home/Index1IM";
-import { Index2IM } from "../model/home/Index2IM";
-import { Index3IM } from "../model/home/Index3IM";
-import { Index4IM } from "../model/home/Index4IM";
-import { Index5IM } from "../model/home/Index5IM";
-import { Index6IM } from "../model/home/Index6IM";
-import { Index7IM } from "../model/home/Index7IM";
-import { Index8IM } from "../model/home/Index8IM";
-import { Index9IM } from "../model/home/Index9IM";
-import { Index10IM } from "../model/home/Index10IM";
-import { Index11IM } from "../model/home/Index11IM";
-import { Index12IM } from "../model/home/Index12IM";
-import { Index13IM } from "../model/home/Index13IM";
-import { Index14IM } from "../model/home/Index14IM";
+import { BindBody, Controller, GetMapping, PostMapping } from '../../../../bin/index';
+import { Index10IM } from '../model/home/Index10IM';
+import { Index11IM } from '../model/home/Index11IM';
+import { Index12IM } from '../model/home/Index12IM';
+import { Index13IM } from '../model/home/Index13IM';
+import { Index14IM } from '../model/home/Index14IM';
+import { Index1IM } from '../model/home/Index1IM';
+import { Index2IM } from '../model/home/Index2IM';
+import { Index3IM } from '../model/home/Index3IM';
+import { Index4IM } from '../model/home/Index4IM';
+import { Index5IM } from '../model/home/Index5IM';
+import { Index6IM } from '../model/home/Index6IM';
+import { Index7IM } from '../model/home/Index7IM';
+import { Index8IM } from '../model/home/Index8IM';
+import { Index9IM } from '../model/home/Index9IM';
 
 @Controller()
 export class HomeController {

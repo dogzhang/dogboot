@@ -1,5 +1,5 @@
-import { ExceptionHandler, ExceptionFilter } from "../../../../bin/index";
-import { UnAuthorizedException } from "./MyActionFilter";
+import { ExceptionFilter, ExceptionHandler } from '../../../../bin/index';
+import { UnAuthorizedException } from './MyActionFilter';
 
 @ExceptionFilter
 export class MyExceptionFilter {

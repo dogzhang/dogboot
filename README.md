@@ -61,8 +61,8 @@ tsconfig.json是TypeScript项目的可选配置文件，对于dogboot我们建�
     "module": "commonjs",
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
-    "target": "esnext",
-    "lib": ["es2017"],
+    "target": "es6",
+    "lib": ["esnext"],
     "outDir": "bin"
   },
   "include": ["src"]

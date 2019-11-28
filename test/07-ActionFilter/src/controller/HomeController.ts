@@ -1,5 +1,5 @@
-import { Controller, GetMapping, UseActionFilter } from "../../../../bin/index";
-import { MyActionFilter } from "../filter/MyActionFilter";
+import { Controller, GetMapping, UseActionFilter } from '../../../../bin/index';
+import { MyActionFilter } from '../filter/MyActionFilter';
 
 @Controller()
 export class HomeController {

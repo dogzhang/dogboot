@@ -1,7 +1,7 @@
-import { Autowired } from "../core/Component";
-import { Controller } from "./Component";
-import { GetMapping } from "./Mapping";
-import { DogBootApplication } from "./DogBootApplication";
+import { Autowired } from '../core';
+import { Controller } from './Component';
+import { DogBootApplication } from './DogBootApplication';
+import { GetMapping } from './Mapping';
 
 @Controller()
 export class APIDocController {

@@ -1,4 +1,4 @@
-import { Typed, TypedArray } from "../core/TypeConvert";
+import { Typed, TypedArray } from '../core';
 
 /**
  * 跨域选项，dogboot使用koa2-cors这个包实现跨域，参见https://github.com/zadzbw/koa2-cors

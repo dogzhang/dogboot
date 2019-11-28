@@ -1,4 +1,4 @@
-import { Typed, Reg } from "../../../../../bin/index";
+import { Reg, Typed } from '../../../../../bin/index';
 
 export class Index13IM {
     @Reg(/^[a-z]+$/)

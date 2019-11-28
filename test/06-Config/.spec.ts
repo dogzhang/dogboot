@@ -1,12 +1,13 @@
 import { Server } from 'http';
 import * as request from 'supertest'
-import { appPromise } from './src/app'
+import { containerPromise } from './src/app'
+import { DogBootApplication } from '../../bin';
 
 let server: Server
 
 beforeAll(async function () {
-    let app = await appPromise
-    server = app.server
+    let container = await containerPromise
+    server = container.getComponentInstance(DogBootApplication).server
 })
 
 afterAll(function () {

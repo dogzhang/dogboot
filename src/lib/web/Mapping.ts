@@ -5,14 +5,16 @@
  */
 export function Mapping(type: string = 'get', path: string = null) {
     return function (target: any, name: string) {
-        let action = target[name]
-        action.$method = type.toLowerCase()
+        let $method = type.toLowerCase()
+        Reflect.defineMetadata('$method', $method, target, name)
+        
+        let $path = ''
         if (path == null) {
-            action.$path = '/' + action.name
+            $path = '/' + name
         } else {
-            action.$path = path
+            $path = path
         }
-        action.$paramTypes = Reflect.getMetadata('design:paramtypes', target, name)
+        Reflect.defineMetadata('$path', $path, target, name)
     }
 }
 

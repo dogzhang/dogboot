@@ -1,10 +1,10 @@
-import { Controller, GetMapping, UseExceptionFilter, UseActionFilter } from "../../../../bin/index";
-import { MyExceptionFilter } from "../filter/MyExceptionFilter";
-import { MyActionFilter } from "../filter/MyActionFilter";
-import { My4_0ExceptionFilter } from "../filter/My4_0ExceptionFilter";
-import { My4_1ExceptionFilter } from "../filter/My4_1ExceptionFilter";
-import { My5_0ExceptionFilter } from "../filter/My5_0ExceptionFilter";
-import { My5_1ExceptionFilter } from "../filter/My5_1ExceptionFilter";
+import { Controller, GetMapping, UseActionFilter, UseExceptionFilter } from '../../../../bin/index';
+import { My4_0ExceptionFilter } from '../filter/My4_0ExceptionFilter';
+import { My4_1ExceptionFilter } from '../filter/My4_1ExceptionFilter';
+import { My5_0ExceptionFilter } from '../filter/My5_0ExceptionFilter';
+import { My5_1ExceptionFilter } from '../filter/My5_1ExceptionFilter';
+import { MyActionFilter } from '../filter/MyActionFilter';
+import { MyExceptionFilter } from '../filter/MyExceptionFilter';
 
 @Controller()
 export class HomeController {

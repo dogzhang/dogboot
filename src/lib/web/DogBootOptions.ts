@@ -1,6 +1,5 @@
-import { Config } from "../core/Component";
-import { Typed } from "../core/TypeConvert";
-import { CorsOptions } from "./CorsOptions";
+import { Config, Typed } from '../core';
+import { CorsOptions } from './CorsOptions';
 
 @Config({ field: 'app' })
 export class DogBootOptions {
@@ -9,24 +8,6 @@ export class DogBootOptions {
 
     @Typed()
     prefix?: string = ''
-
-    @Typed()
-    staticRootPathName?: string = 'public'
-
-    @Typed()
-    controllerRootPathName?: string = 'controller'
-
-    @Typed()
-    startupRootPathName?: string = 'startup'
-
-    @Typed()
-    filterRootPathName?: string = 'filter'
-
-    @Typed()
-    enableTest?: boolean = false
-
-    @Typed()
-    testRootPathName?: string = 'test'
 
     @Typed()
     enableApidoc?: boolean = false

@@ -1,4 +1,4 @@
-import { StartUp, Init } from "../../../../bin/index";
+import { Init, StartUp } from '../../../../bin/index';
 
 @StartUp(2)
 export class MyStartUp2 {

@@ -1,11 +1,11 @@
-import { Controller, GetMapping, DogBootApplication, DIContainer } from "../../../../bin/index";
-import { MyService1 } from "../component/MyService1";
-import { MyService4 } from "../component/MyService4";
-import { MyService2 } from "../component/MyService2";
-import { MyService6 } from "../component/MyService6";
-import { MyService7 } from "../component/MyService7";
-import { MyService8 } from "../component/MyService8";
-import { MyService9 } from "../component/MyService9";
+import { Controller, DIContainer, DogBootApplication, GetMapping } from '../../../../bin/index';
+import { MyService1 } from '../component/MyService1';
+import { MyService2 } from '../component/MyService2';
+import { MyService4 } from '../component/MyService4';
+import { MyService6 } from '../component/MyService6';
+import { MyService7 } from '../component/MyService7';
+import { MyService8 } from '../component/MyService8';
+import { MyService9 } from '../component/MyService9';
 
 @Controller('/home')
 export class HomeController {

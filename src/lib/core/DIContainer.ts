@@ -1,55 +1,15 @@
-import chokidar = require('chokidar');
-import { EventEmitter } from 'events';
+import { InnerCachable } from './InnerCache';
 import { Utils } from './Utils';
-import { DIContainerOptions } from './DIContainerOptions';
 
-export class DIContainer extends EventEmitter {
-    private componentInstanceMapKeyByFilenameAndClassName: Map<string, Map<string, any>> = new Map()
+export class DIContainer {
+    readonly startTime: number
+
+    private componentSet: Set<(new (...args: any[]) => {})> = new Set()
     private componentInstanceMap: Map<any, any> = new Map()
-    private watcher: chokidar.FSWatcher
-    private opts: DIContainerOptions
-    private configPathSet: Set<string> = new Set()
 
     constructor() {
-        super()
-        this.opts = Utils.getConfigValue(DIContainerOptions)[0]
-        if (this.opts.enableHotload == true) {
-            this.watch()
-        }
-    }
-
-    on<K extends 'reload', T extends {
-        'reload': () => void
-    }>(event: K, listener: T[K]): this {
-        return super.on(event, listener)
-    }
-
-    private async watch() {
-        this.watcher = chokidar.watch([Utils.getExecRootPath()], {
-            ignoreInitial: true,
-            ignorePermissionErrors: true
-        })
-
-        let st: NodeJS.Timeout
-        this.watcher.on('all', () => {
-            clearTimeout(st)
-            st = setTimeout(() => {
-                this.emit('reload')
-            }, this.opts.hotloadDebounceInterval)
-        })
-    }
-
-    clear() {
-        Utils.getAllFileListInDir(Utils.getExecRootPath()).forEach(a => {
-            if (require.cache[a]) {
-                delete require.cache[a]
-            }
-        })
-        this.configPathSet.forEach(a => {
-            delete require.cache[a]
-        })
-        this.configPathSet.clear()
-        this.componentInstanceMap.clear()
+        this.startTime = Date.now()
+        this.setComponentInstance(DIContainer, this)
     }
 
     /**
@@ -62,7 +22,7 @@ export class DIContainer extends EventEmitter {
     }
 
     /**
-     * 以同步的方式根据指定类型从容器取出实例
+     * 以同步的方式根据指定类型从容器取出实例，需要确保此时类实例已经存在
      * @param target 类型
      */
     getComponentInstance<T>(target: new (...args: any[]) => T): T {
@@ -88,45 +48,30 @@ export class DIContainer extends EventEmitter {
     }
 
     private async createComponentInstance<T>(target: new (...args: any[]) => T): Promise<T> {
-        if (!target.prototype.$isComponent) {
+        if (!Reflect.getMetadata('$isComponent', target.prototype)) {
             throw new Error(`${target.name}没有被注册为可自动解析的组件，请至少添加@Component、@StartUp、@Controller、@Config等装饰器中的一种`)
         }
-        let map = this.componentInstanceMapKeyByFilenameAndClassName.get(target.prototype.$filename) || new Map()
-        let lastInstance = map.get(target.name)
 
         let instance = null
-        if (target.prototype.$isConfig) {
-            instance = this.getConfigValue(target)
+        if (Reflect.getMetadata('$isConfig', target.prototype)) {
+            instance = Utils.getConfigValue(target)
             this.componentInstanceMap.set(target, instance)
         } else {
             instance = Reflect.construct(target, await this.getParamInstances(target))
             this.componentInstanceMap.set(target, instance)
             await this.resolveAutowiredDependences(instance)
 
-            if (lastInstance) {
-                if (target.prototype.$aliveFields) {
-                    target.prototype.$aliveFields.forEach((a: string) => {
-                        if (lastInstance.hasOwnProperty(a)) {
-                            instance[a] = lastInstance[a]
-                        }
-                    })
-                }
-            }
-
-            let initMethod = target.prototype.$initMethod
+            let initMethod = Reflect.getMetadata('$initMethod', target.prototype)
             if (initMethod) {
-                await instance[initMethod](lastInstance)
+                await instance[initMethod]()
             }
         }
-
-        map.set(target.name, instance)
-        this.componentInstanceMapKeyByFilenameAndClassName.set(target.prototype.$filename, map)
 
         return instance
     }
 
     private async getParamInstances(target: new (...args: any[]) => {}): Promise<any[]> {
-        let paramTypes = target.prototype.$paramTypes
+        let paramTypes = Reflect.getMetadata('$paramTypes', target.prototype)
         let paramInstances = []
         for (let paramType of paramTypes) {
             let paramInstance = await this.getComponentInstanceFromFactory(paramType)
@@ -137,7 +82,7 @@ export class DIContainer extends EventEmitter {
 
     private async resolveAutowiredDependences(instance: any) {
         let target = instance.__proto__.constructor
-        let autowiredMap = target.prototype.$autowiredMap
+        let autowiredMap = Reflect.getMetadata('$autowiredMap', target.prototype)
         if (autowiredMap) {
             for (let [k, v] of autowiredMap) {
                 if (v.name) {
@@ -150,20 +95,89 @@ export class DIContainer extends EventEmitter {
         }
     }
 
-    private getConfigValue<T>(target: new (...args: any[]) => T): T {
-        let [val, configFilePath] = Utils.getConfigValue(target)
-        this.addConfigFilePath(configFilePath)
-        return val
+    loadFile(filename: string) {
+        if (require.cache[filename]) {
+            return
+        }
+        let _Module = Utils.tryRequire(filename)
+        if (_Module == null) {
+            return
+        }
+        Object.values(_Module).filter(a => a instanceof Function && Reflect.getMetadata('$isComponent', a.prototype))
+            .forEach((a: new (...args: any[]) => {}) => {
+                this.componentSet.add(a)
+            })
+
+        return this
     }
 
-    private addConfigFilePath(configFilePath: string) {
-        if (!this.opts.enableHotload) {
-            return
-        }
-        if (this.configPathSet.has(configFilePath)) {
-            return
-        }
-        this.configPathSet.add(configFilePath)
-        this.watcher.add(configFilePath)
+    loadDir(dir: string) {
+        let files = Utils.getAllFileListInDir(dir)
+        files.forEach(a => this.loadFile(a))
+
+        return this
     }
+
+    @InnerCachable({ keys: [[0, '']] })
+    getComponentsByTag(tag: string) {
+        return Array.from(this.componentSet).filter(a => Reflect.getMetadata(tag, a.prototype))
+    }
+
+    private async initStartUps() {
+        let startUpClassList = this.getComponentsByTag('$isStartUp').sort((a, b) => Reflect.getMetadata('$order', b.prototype) - Reflect.getMetadata('$order', a.prototype))
+        for (let startUp of startUpClassList) {
+            await this.getComponentInstanceFromFactory(startUp)
+        }
+    }
+
+    private async test() {
+        let testClassList = this.getComponentsByTag('$isTest')
+        if (testClassList.length == 0) {
+            return
+        }
+
+        console.log('Running tests...')
+        let startTime = Date.now()
+
+        let passed = 0
+        let faild = 0
+        let total = 0
+        for (let _Class of testClassList) {
+            let _prototype = _Class.prototype
+            let testInstance = await this.getComponentInstanceFromFactory(_Class)
+            for (let testMethod of Reflect.getMetadata('$testMethods', _prototype)) {
+                try {
+                    await testInstance[testMethod]()
+                    passed += 1
+                } catch (error) {
+                    console.error(`Test faild at ${_Class.name}.${testMethod}`)
+                    console.trace(error.stack)
+                    faild += 1
+                } finally {
+                    total += 1
+                }
+            }
+        }
+
+        let endTime = Date.now()
+        console.log(`All tests run in ${endTime - startTime}ms`)
+        console.table([{ passed, faild, total }])
+    }
+
+    async runAsync() {
+        this.loadDir(Utils.getExecRootPath())
+
+        await this.initStartUps()
+        await this.test()
+
+        return this
+    }
+}
+
+let _instance: DIContainer
+export function getContainer() {
+    if (_instance == null) {
+        _instance = new DIContainer()
+    }
+    return _instance
 }

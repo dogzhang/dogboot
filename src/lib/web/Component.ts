@@ -1,4 +1,4 @@
-import { Utils } from "../core/Utils";
+import { Utils } from '../core';
 
 /**
  * 指定此类为控制器
@@ -7,12 +7,14 @@ import { Utils } from "../core/Utils";
  */
 export function Controller(path: string = null) {
     return function (target: new (...args: any[]) => {}) {
+        let $path = ''
         if (path == null) {
-            target.prototype.$path = '/' + target.name.replace(/Controller$/i, '')
+            $path = '/' + target.name.replace(/Controller$/i, '')
         } else {
-            target.prototype.$path = path
+            $path = path
         }
-        target.prototype.$isController = true
+        Reflect.defineMetadata('$isController', true, target.prototype)
+        Reflect.defineMetadata('$path', $path, target.prototype)
         Utils.markAsComponent(target)
     }
 }

@@ -1,12 +1,13 @@
 import { Server } from 'http';
 import * as request from 'supertest'
-import { appPromise } from './src/app'
+import { containerPromise } from './src/app'
+import { DogBootApplication } from '../../bin';
 
 let server: Server
 
 beforeAll(async function () {
-    let app = await appPromise
-    server = app.server
+    let container = await containerPromise
+    server = container.getComponentInstance(DogBootApplication).server
 })
 
 afterAll(function () {
@@ -99,7 +100,7 @@ test('Length', async function () {
         expect(resp.text).toBe('IllegalArgumentException')
     }
     {
-        let resp = await request(server).post('/home/index4').send({ a: ' '.repeat(3) })
+        let resp = await request(server).post('/home/index4').send({ a: 'a'.repeat(3) })
         expect(resp.status).toBe(200)
         expect(resp.text).toBe('ok')
     }
@@ -137,7 +138,7 @@ test('MinLength', async function () {
         expect(resp.text).toBe('IllegalArgumentException')
     }
     {
-        let resp = await request(server).post('/home/index5').send({ a: ' '.repeat(3) })
+        let resp = await request(server).post('/home/index5').send({ a: 'a'.repeat(3) })
         expect(resp.status).toBe(200)
         expect(resp.text).toBe('ok')
     }
@@ -170,7 +171,7 @@ test('MaxLength', async function () {
         expect(resp.text).toBe('IllegalArgumentException')
     }
     {
-        let resp = await request(server).post('/home/index5').send({ a: ' '.repeat(3) })
+        let resp = await request(server).post('/home/index5').send({ a: 'a'.repeat(3) })
         expect(resp.status).toBe(200)
         expect(resp.text).toBe('ok')
     }

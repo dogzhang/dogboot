@@ -1,5 +1,5 @@
-import { TypeSpecifiedMap } from "./TypeSpecifiedMap";
-import { TypeSpecifiedType } from "./TypeSpecifiedType";
+import { TypeSpecifiedMap } from './TypeSpecifiedMap';
+import { TypeSpecifiedType } from './TypeSpecifiedType';
 
 /**
  * 指定此字段需要转换为指定类型，仅仅支持Number、String、Date
@@ -7,9 +7,10 @@ import { TypeSpecifiedType } from "./TypeSpecifiedType";
  */
 export function Typed(sourceNameOrGetSourceNameFunc: string | ((targetName: string) => string) = null) {
     return function (target: any, name: string) {
-        target.$sourceFields = target.$sourceFields || {}
+        let $sourceFields = Reflect.getMetadata('$sourceFields', target) || {}
         let sourceName = getSourceName(name, sourceNameOrGetSourceNameFunc)
-        target.$sourceFields[sourceName] = new TypeSpecifiedMap(TypeSpecifiedType.General, Reflect.getMetadata('design:type', target, name), sourceName, name)
+        $sourceFields[sourceName] = new TypeSpecifiedMap(TypeSpecifiedType.General, Reflect.getMetadata('design:type', target, name), sourceName, name)
+        Reflect.defineMetadata('$sourceFields', $sourceFields, target)
     }
 }
 
@@ -20,9 +21,10 @@ export function Typed(sourceNameOrGetSourceNameFunc: string | ((targetName: stri
  */
 export function TypedArray(type: Function, sourceNameOrGetSourceNameFunc: string | ((targetName: string) => string) = null) {
     return function (target: any, name: string) {
-        target.$sourceFields = target.$sourceFields || {}
+        let $sourceFields = Reflect.getMetadata('$sourceFields', target) || {}
         let sourceName = getSourceName(name, sourceNameOrGetSourceNameFunc)
-        target.$sourceFields[sourceName] = new TypeSpecifiedMap(TypeSpecifiedType.Array, type, sourceName, name)
+        $sourceFields[sourceName] = new TypeSpecifiedMap(TypeSpecifiedType.Array, type, sourceName, name)
+        Reflect.defineMetadata('$sourceFields', $sourceFields, target)
     }
 }
 

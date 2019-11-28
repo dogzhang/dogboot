@@ -1,4 +1,4 @@
-import { Typed, NotBlank } from "../../../../../bin/index";
+import { NotBlank, Typed } from '../../../../../bin/index';
 
 export class Index3IM {
     @NotBlank()

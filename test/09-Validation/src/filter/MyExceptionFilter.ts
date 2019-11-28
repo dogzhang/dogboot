@@ -1,5 +1,5 @@
 import Koa = require('koa');
-import { GlobalExceptionFilter, ExceptionHandler, IllegalArgumentException } from "../../../../bin";
+import { ExceptionHandler, GlobalExceptionFilter, IllegalArgumentException } from '../../../../bin';
 
 @GlobalExceptionFilter()
 export class MyExceptionFilter {

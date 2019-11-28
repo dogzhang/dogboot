@@ -1,4 +1,4 @@
-import { Typed, MaxDecimal } from "../../../../../bin/index";
+import { MaxDecimal, Typed } from '../../../../../bin/index';
 
 export class Index12IM {
     @MaxDecimal(4)

@@ -1,4 +1,4 @@
-import { GlobalExceptionFilter, ExceptionHandler } from "../../../../bin/index";
+import { ExceptionHandler, GlobalExceptionFilter } from '../../../../bin/index';
 
 @GlobalExceptionFilter()
 export class MyGlobalExceptionFilter {

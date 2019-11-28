@@ -1,4 +1,4 @@
-import { Controller, GetMapping } from "../../../../bin/index";
+import { Controller, GetMapping } from '../../../../bin/index';
 
 @Controller('/home')
 export class HomeController {

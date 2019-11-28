@@ -1,4 +1,4 @@
-import { Typed, Decimal } from "../../../../../bin/index";
+import { Decimal, Typed } from '../../../../../bin/index';
 
 export class Index10IM {
     @Decimal(2, 4)

@@ -1,4 +1,4 @@
-import { Typed, MinDecimal } from "../../../../../bin/index";
+import { MinDecimal, Typed } from '../../../../../bin/index';
 
 export class Index11IM {
     @MinDecimal(2)

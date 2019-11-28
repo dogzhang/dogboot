@@ -1,4 +1,7 @@
-import { Controller, GetMapping, PostMapping, PutMapping, PatchMapping, DeleteMapping, HeadMapping, AllMapping, Mapping } from "../../../../bin/index";
+import {
+    AllMapping, Controller, DeleteMapping, GetMapping, HeadMapping, Mapping, PatchMapping,
+    PostMapping, PutMapping
+} from '../../../../bin/index';
 
 @Controller('/home')
 export class HomeController {
