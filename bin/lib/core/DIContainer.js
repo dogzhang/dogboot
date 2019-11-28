@@ -1,57 +1,31 @@
 "use strict";
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
         function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
         function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : new P(function (resolve) { resolve(result.value); }).then(fulfilled, rejected); }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-const chokidar = require("chokidar");
-const events_1 = require("events");
+const InnerCache_1 = require("./InnerCache");
 const Utils_1 = require("./Utils");
-const DIContainerOptions_1 = require("./DIContainerOptions");
-class DIContainer extends events_1.EventEmitter {
+class DIContainer {
     constructor() {
-        super();
-        this.componentInstanceMapKeyByFilenameAndClassName = new Map();
+        this.componentSet = new Set();
         this.componentInstanceMap = new Map();
-        this.configPathSet = new Set();
-        this.opts = Utils_1.Utils.getConfigValue(DIContainerOptions_1.DIContainerOptions)[0];
-        if (this.opts.enableHotload == true) {
-            this.watch();
-        }
-    }
-    on(event, listener) {
-        return super.on(event, listener);
-    }
-    watch() {
-        return __awaiter(this, void 0, void 0, function* () {
-            this.watcher = chokidar.watch([Utils_1.Utils.getExecRootPath()], {
-                ignoreInitial: true,
-                ignorePermissionErrors: true
-            });
-            let st;
-            this.watcher.on('all', () => {
-                clearTimeout(st);
-                st = setTimeout(() => {
-                    this.emit('reload');
-                }, this.opts.hotloadDebounceInterval);
-            });
-        });
-    }
-    clear() {
-        Utils_1.Utils.getAllFileListInDir(Utils_1.Utils.getExecRootPath()).forEach(a => {
-            if (require.cache[a]) {
-                delete require.cache[a];
-            }
-        });
-        this.configPathSet.forEach(a => {
-            delete require.cache[a];
-        });
-        this.configPathSet.clear();
-        this.componentInstanceMap.clear();
+        this.startTime = Date.now();
+        this.setComponentInstance(DIContainer, this);
     }
     /**
      * 将已经实例化好的对象添加进容器
@@ -62,7 +36,7 @@ class DIContainer extends events_1.EventEmitter {
         this.componentInstanceMap.set(target, instance);
     }
     /**
-     * 以同步的方式根据指定类型从容器取出实例
+     * 以同步的方式根据指定类型从容器取出实例，需要确保此时类实例已经存在
      * @param target 类型
      */
     getComponentInstance(target) {
@@ -87,42 +61,29 @@ class DIContainer extends events_1.EventEmitter {
     }
     createComponentInstance(target) {
         return __awaiter(this, void 0, void 0, function* () {
-            if (!target.prototype.$isComponent) {
+            if (!Reflect.getMetadata('$isComponent', target.prototype)) {
                 throw new Error(`${target.name}没有被注册为可自动解析的组件，请至少添加@Component、@StartUp、@Controller、@Config等装饰器中的一种`);
             }
-            let map = this.componentInstanceMapKeyByFilenameAndClassName.get(target.prototype.$filename) || new Map();
-            let lastInstance = map.get(target.name);
             let instance = null;
-            if (target.prototype.$isConfig) {
-                instance = this.getConfigValue(target);
+            if (Reflect.getMetadata('$isConfig', target.prototype)) {
+                instance = Utils_1.Utils.getConfigValue(target);
                 this.componentInstanceMap.set(target, instance);
             }
             else {
                 instance = Reflect.construct(target, yield this.getParamInstances(target));
                 this.componentInstanceMap.set(target, instance);
                 yield this.resolveAutowiredDependences(instance);
-                if (lastInstance) {
-                    if (target.prototype.$aliveFields) {
-                        target.prototype.$aliveFields.forEach((a) => {
-                            if (lastInstance.hasOwnProperty(a)) {
-                                instance[a] = lastInstance[a];
-                            }
-                        });
-                    }
-                }
-                let initMethod = target.prototype.$initMethod;
+                let initMethod = Reflect.getMetadata('$initMethod', target.prototype);
                 if (initMethod) {
-                    yield instance[initMethod](lastInstance);
+                    yield instance[initMethod]();
                 }
             }
-            map.set(target.name, instance);
-            this.componentInstanceMapKeyByFilenameAndClassName.set(target.prototype.$filename, map);
             return instance;
         });
     }
     getParamInstances(target) {
         return __awaiter(this, void 0, void 0, function* () {
-            let paramTypes = target.prototype.$paramTypes;
+            let paramTypes = Reflect.getMetadata('$paramTypes', target.prototype);
             let paramInstances = [];
             for (let paramType of paramTypes) {
                 let paramInstance = yield this.getComponentInstanceFromFactory(paramType);
@@ -134,7 +95,7 @@ class DIContainer extends events_1.EventEmitter {
     resolveAutowiredDependences(instance) {
         return __awaiter(this, void 0, void 0, function* () {
             let target = instance.__proto__.constructor;
-            let autowiredMap = target.prototype.$autowiredMap;
+            let autowiredMap = Reflect.getMetadata('$autowiredMap', target.prototype);
             if (autowiredMap) {
                 for (let [k, v] of autowiredMap) {
                     if (v.name) {
@@ -148,21 +109,92 @@ class DIContainer extends events_1.EventEmitter {
             }
         });
     }
-    getConfigValue(target) {
-        let [val, configFilePath] = Utils_1.Utils.getConfigValue(target);
-        this.addConfigFilePath(configFilePath);
-        return val;
+    loadFile(filename) {
+        if (require.cache[filename]) {
+            return;
+        }
+        let _Module = Utils_1.Utils.tryRequire(filename);
+        if (_Module == null) {
+            return;
+        }
+        Object.values(_Module).filter(a => a instanceof Function && Reflect.getMetadata('$isComponent', a.prototype))
+            .forEach((a) => {
+            this.componentSet.add(a);
+        });
+        return this;
     }
-    addConfigFilePath(configFilePath) {
-        if (!this.opts.enableHotload) {
-            return;
-        }
-        if (this.configPathSet.has(configFilePath)) {
-            return;
-        }
-        this.configPathSet.add(configFilePath);
-        this.watcher.add(configFilePath);
+    loadDir(dir) {
+        let files = Utils_1.Utils.getAllFileListInDir(dir);
+        files.forEach(a => this.loadFile(a));
+        return this;
+    }
+    getComponentsByTag(tag) {
+        return Array.from(this.componentSet).filter(a => Reflect.getMetadata(tag, a.prototype));
+    }
+    initStartUps() {
+        return __awaiter(this, void 0, void 0, function* () {
+            let startUpClassList = this.getComponentsByTag('$isStartUp').sort((a, b) => Reflect.getMetadata('$order', b.prototype) - Reflect.getMetadata('$order', a.prototype));
+            for (let startUp of startUpClassList) {
+                yield this.getComponentInstanceFromFactory(startUp);
+            }
+        });
+    }
+    test() {
+        return __awaiter(this, void 0, void 0, function* () {
+            let testClassList = this.getComponentsByTag('$isTest');
+            if (testClassList.length == 0) {
+                return;
+            }
+            console.log('Running tests...');
+            let startTime = Date.now();
+            let passed = 0;
+            let faild = 0;
+            let total = 0;
+            for (let _Class of testClassList) {
+                let _prototype = _Class.prototype;
+                let testInstance = yield this.getComponentInstanceFromFactory(_Class);
+                for (let testMethod of Reflect.getMetadata('$testMethods', _prototype)) {
+                    try {
+                        yield testInstance[testMethod]();
+                        passed += 1;
+                    }
+                    catch (error) {
+                        console.error(`Test faild at ${_Class.name}.${testMethod}`);
+                        console.trace(error.stack);
+                        faild += 1;
+                    }
+                    finally {
+                        total += 1;
+                    }
+                }
+            }
+            let endTime = Date.now();
+            console.log(`All tests run in ${endTime - startTime}ms`);
+            console.table([{ passed, faild, total }]);
+        });
+    }
+    runAsync() {
+        return __awaiter(this, void 0, void 0, function* () {
+            this.loadDir(Utils_1.Utils.getExecRootPath());
+            yield this.initStartUps();
+            yield this.test();
+            return this;
+        });
     }
 }
+__decorate([
+    InnerCache_1.InnerCachable({ keys: [[0, '']] }),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], DIContainer.prototype, "getComponentsByTag", null);
 exports.DIContainer = DIContainer;
+let _instance;
+function getContainer() {
+    if (_instance == null) {
+        _instance = new DIContainer();
+    }
+    return _instance;
+}
+exports.getContainer = getContainer;
 //# sourceMappingURL=DIContainer.js.map

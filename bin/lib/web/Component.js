@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-const Utils_1 = require("../core/Utils");
+const core_1 = require("../core");
 /**
  * 指定此类为控制器
  * Controller是一种特殊的Component
@@ -8,14 +8,16 @@ const Utils_1 = require("../core/Utils");
  */
 function Controller(path = null) {
     return function (target) {
+        let $path = '';
         if (path == null) {
-            target.prototype.$path = '/' + target.name.replace(/Controller$/i, '');
+            $path = '/' + target.name.replace(/Controller$/i, '');
         }
         else {
-            target.prototype.$path = path;
+            $path = path;
         }
-        target.prototype.$isController = true;
-        Utils_1.Utils.markAsComponent(target);
+        Reflect.defineMetadata('$isController', true, target.prototype);
+        Reflect.defineMetadata('$path', $path, target.prototype);
+        core_1.Utils.markAsComponent(target);
     };
 }
 exports.Controller = Controller;

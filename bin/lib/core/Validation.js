@@ -5,8 +5,9 @@ const IllegalArgumentException_1 = require("./IllegalArgumentException");
  * 指定此Array类型需要验证其确切类型
  */
 function Valid(target, name) {
-    target.$validator = target.$validator || {};
-    target.$validator[name] = target.$validator[name] || [];
+    let $validator = Reflect.getMetadata('$validator', target) || {};
+    $validator[name] = $validator[name] || [];
+    Reflect.defineMetadata('$validator', $validator, target);
 }
 exports.Valid = Valid;
 /**
@@ -15,14 +16,15 @@ exports.Valid = Valid;
  */
 function Func(func) {
     return function (target, name) {
-        target.$validator = target.$validator || {};
-        target.$validator[name] = target.$validator[name] || [];
-        target.$validator[name].push(a => {
+        let $validator = Reflect.getMetadata('$validator', target) || {};
+        $validator[name] = $validator[name] || [];
+        $validator[name].push(a => {
             let result = func(a);
             if (!result[0]) {
                 throw new IllegalArgumentException_1.IllegalArgumentException(result[1], target.constructor.name, name);
             }
         });
+        Reflect.defineMetadata('$validator', $validator, target);
     };
 }
 exports.Func = Func;
@@ -76,14 +78,21 @@ exports.NotBlank = NotBlank;
  * @param errorMesage 错误消息，默认为：字段长度必须小于或等于${max} | 字段长度必须大于或等于${min} | 字段长度必须介于${min} ~ ${max}
  */
 function Length(min, max, errorMesage = null) {
-    if (min == null) {
-        errorMesage = errorMesage || `字段长度必须小于或等于${max}`;
-    }
-    else if (max == null) {
-        errorMesage = errorMesage || `字段长度必须大于或等于${min}`;
-    }
-    else {
-        errorMesage = errorMesage || `字段长度必须介于${min} ~ ${max}`;
+    if (errorMesage == null) {
+        if (min == null) {
+            errorMesage = `字段长度必须小于或等于${max}`;
+        }
+        else if (max == null) {
+            errorMesage = `字段长度必须大于或等于${min}`;
+        }
+        else {
+            if (min == max) {
+                errorMesage = `字段长度必须等于${min}`;
+            }
+            else {
+                errorMesage = `字段长度必须介于${min} ~ ${max}`;
+            }
+        }
     }
     return Func(a => {
         if (a == null) {
@@ -124,14 +133,21 @@ exports.MaxLength = MaxLength;
  * @param errorMesage 错误消息，默认为：字段值必须小于或等于${max} | 字段值必须大于或等于${min} | 字段值必须介于${min} ~ ${max}
  */
 function Range(min, max, errorMesage = null) {
-    if (min == null) {
-        errorMesage = errorMesage || `字段值必须小于或等于${max}`;
-    }
-    else if (max == null) {
-        errorMesage = errorMesage || `字段值必须大于或等于${min}`;
-    }
-    else {
-        errorMesage = errorMesage || `字段值必须介于${min} ~ ${max}`;
+    if (errorMesage == null) {
+        if (min == null) {
+            errorMesage = `字段值必须小于或等于${max}`;
+        }
+        else if (max == null) {
+            errorMesage = `字段值必须大于或等于${min}`;
+        }
+        else {
+            if (min == max) {
+                errorMesage = `字段值必须等于${min}`;
+            }
+            else {
+                errorMesage = `字段值必须介于${min} ~ ${max}`;
+            }
+        }
     }
     return Func(a => {
         if (a == null) {
@@ -172,14 +188,26 @@ exports.Max = Max;
  * @param errorMesage 错误消息，默认为：小数点位数必须小于或等于${max} | 小数点位数必须大于或等于${min} | 小数点位数必须介于${min} ~ ${max}
  */
 function Decimal(min, max, errorMesage = null) {
-    if (min == null) {
-        errorMesage = errorMesage || `小数点位数必须小于或等于${max}`;
-    }
-    else if (max == null) {
-        errorMesage = errorMesage || `小数点位数必须大于或等于${min}`;
-    }
-    else {
-        errorMesage = errorMesage || `小数点位数必须介于${min} ~ ${max}`;
+    if (errorMesage == null) {
+        if (min == null) {
+            errorMesage = `小数点位数必须小于或等于${max}`;
+        }
+        else if (max == null) {
+            errorMesage = `小数点位数必须大于或等于${min}`;
+        }
+        else {
+            if (min == max) {
+                if (min == 0) {
+                    errorMesage = `只能是整数`;
+                }
+                else {
+                    errorMesage = `小数点位数必须等于${min}`;
+                }
+            }
+            else {
+                errorMesage = `小数点位数必须介于${min} ~ ${max}`;
+            }
+        }
     }
     return Func(a => {
         if (a == null) {

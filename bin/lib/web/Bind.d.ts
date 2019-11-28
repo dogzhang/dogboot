@@ -26,6 +26,12 @@ export declare function BindQuery(key: string): (target: any, name: string, inde
  */
 export declare function BindPath(key: string): (target: any, name: string, index: number) => void;
 /**
+ * 绑定header中的参数
+ * 只能在Controller中使用
+ * @param key 参数名称
+ */
+export declare function BindHeader(key: string): (target: any, name: string, index: number) => void;
+/**
  * 只能在Controller中使用
  * 绑定请求体参数
  */

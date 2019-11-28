@@ -1,4 +1,4 @@
-import { TypeSpecifiedType } from "./TypeSpecifiedType";
+import { TypeSpecifiedType } from './TypeSpecifiedType';
 export declare class TypeSpecifiedMap {
     readonly typeSpecifiedType: TypeSpecifiedType;
     readonly type: Function;

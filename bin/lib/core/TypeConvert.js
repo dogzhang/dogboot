@@ -8,9 +8,10 @@ const TypeSpecifiedType_1 = require("./TypeSpecifiedType");
  */
 function Typed(sourceNameOrGetSourceNameFunc = null) {
     return function (target, name) {
-        target.$sourceFields = target.$sourceFields || {};
+        let $sourceFields = Reflect.getMetadata('$sourceFields', target) || {};
         let sourceName = getSourceName(name, sourceNameOrGetSourceNameFunc);
-        target.$sourceFields[sourceName] = new TypeSpecifiedMap_1.TypeSpecifiedMap(TypeSpecifiedType_1.TypeSpecifiedType.General, Reflect.getMetadata('design:type', target, name), sourceName, name);
+        $sourceFields[sourceName] = new TypeSpecifiedMap_1.TypeSpecifiedMap(TypeSpecifiedType_1.TypeSpecifiedType.General, Reflect.getMetadata('design:type', target, name), sourceName, name);
+        Reflect.defineMetadata('$sourceFields', $sourceFields, target);
     };
 }
 exports.Typed = Typed;
@@ -21,9 +22,10 @@ exports.Typed = Typed;
  */
 function TypedArray(type, sourceNameOrGetSourceNameFunc = null) {
     return function (target, name) {
-        target.$sourceFields = target.$sourceFields || {};
+        let $sourceFields = Reflect.getMetadata('$sourceFields', target) || {};
         let sourceName = getSourceName(name, sourceNameOrGetSourceNameFunc);
-        target.$sourceFields[sourceName] = new TypeSpecifiedMap_1.TypeSpecifiedMap(TypeSpecifiedType_1.TypeSpecifiedType.Array, type, sourceName, name);
+        $sourceFields[sourceName] = new TypeSpecifiedMap_1.TypeSpecifiedMap(TypeSpecifiedType_1.TypeSpecifiedType.Array, type, sourceName, name);
+        Reflect.defineMetadata('$sourceFields', $sourceFields, target);
     };
 }
 exports.TypedArray = TypedArray;

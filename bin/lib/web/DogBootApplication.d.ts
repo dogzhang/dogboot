@@ -1,36 +1,25 @@
 /// <reference types="node" />
 import Koa = require('koa');
 import { Server } from 'http';
-import { Area } from './Area';
+import { DIContainer } from '../core';
+import { DogBootOptions } from './DogBootOptions';
 export declare class DogBootApplication {
-    app: Koa<any, {}>;
+    private readonly opts;
+    private readonly container;
+    app: Koa<Koa.DefaultState, Koa.DefaultContext>;
     server: Server;
-    area: Area;
-    private globalExceptionFilters;
-    private globalActionFilters;
-    private requestHandler;
-    private opts;
-    private container;
-    constructor();
+    constructor(opts: DogBootOptions, container: DIContainer);
+    init(): Promise<this>;
     private build;
-    private checkControllerDir;
     private checkControllerClass;
     private checkAndHandleActionName;
     private handleContext;
+    getGlobalActionFiltersOfThisPath(path: string): (new (...args: any[]) => {})[];
     private getExceptionHandlerName;
+    private isThisPathInScope;
     private handlerException;
-    private startUp;
     private initControllers;
     private initFilters;
     private buildApidoc;
     private useNotFoundExceptionHandler;
-    /**
-     * 主动热更新程序
-     */
-    reload(): Promise<this>;
-    /**
-     * 异步启动程序，程序完全启动后才会返回
-     */
-    runAsync(): Promise<this>;
-    private test;
 }

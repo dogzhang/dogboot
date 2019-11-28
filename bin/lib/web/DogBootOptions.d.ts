@@ -1,13 +1,7 @@
-import { CorsOptions } from "./CorsOptions";
+import { CorsOptions } from './CorsOptions';
 export declare class DogBootOptions {
     port?: number;
     prefix?: string;
-    staticRootPathName?: string;
-    controllerRootPathName?: string;
-    startupRootPathName?: string;
-    filterRootPathName?: string;
-    enableTest?: boolean;
-    testRootPathName?: string;
     enableApidoc?: boolean;
     /**
      * 是否允许跨域

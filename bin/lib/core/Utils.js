@@ -2,9 +2,9 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require("fs");
 const path = require("path");
-const DogUtils_1 = require("./DogUtils");
+const TypeSpecifiedType_1 = require("./TypeSpecifiedType");
 /**
- * 仅仅被dogboot使用的内部工具方法
+ * 一些工具方法
  */
 class Utils {
     /**
@@ -12,13 +12,13 @@ class Utils {
      * @param target 目标类型
      */
     static markAsComponent(target) {
-        target.prototype.$isComponent = true;
+        Reflect.defineMetadata('$isComponent', true, target.prototype);
         let paramTypes = Reflect.getMetadata('design:paramtypes', target) || [];
         if (paramTypes.includes(target)) {
             console.error(`${target.name}中存在自我依赖`);
             process.abort();
         }
-        target.prototype.$paramTypes = paramTypes;
+        Reflect.defineMetadata('$paramTypes', paramTypes, target.prototype);
     }
     /**
      * 递归获取指定文件夹下所有文件列表
@@ -64,7 +64,7 @@ class Utils {
         });
     }
     static getValidator(obj) {
-        return obj != null && obj.__proto__ && obj.__proto__.$validator;
+        return obj != null && obj.__proto__ && Reflect.getMetadata('$validator', obj.__proto__);
     }
     /**
      * 验证模型是否合法，第一个不合法的字段会导致此方法抛出异常IllegalArgumentException
@@ -121,33 +121,99 @@ class Utils {
         }
         return this.execRootPath;
     }
-    static getConfigFilename(configName) {
-        return path.join(this.getAppRootPath(), configName);
+    static getConfigFilename() {
+        return path.join(this.getAppRootPath(), 'config.json');
     }
     /**
      * 获取配置值
      * @param target 配置类型
      */
     static getConfigValue(target) {
-        let configName = target.prototype.$configName;
-        let configFilePath = Utils.getConfigFilename(configName);
+        let configFilePath = Utils.getConfigFilename();
         let originalVal = this.tryRequire(configFilePath);
-        let sectionArr = target.prototype.$configField.split('.').filter((a) => a);
-        for (let a of sectionArr) {
-            if (originalVal == null) {
-                break;
-            }
-            originalVal = originalVal[a];
-        }
-        return [DogUtils_1.DogUtils.getTypeSpecifiedValue(target, originalVal, new target()), configFilePath];
+        let newVal = Utils.getValBySectionStr(originalVal, Reflect.getMetadata('$configField', target.prototype));
+        return Utils.getTypeSpecifiedValue(target, newVal, new target());
     }
     static tryRequire(filePath) {
+        if (filePath.endsWith('.map') || filePath.endsWith('.d.ts')) {
+            return null;
+        }
         try {
             return require(filePath);
         }
         catch (error) {
             return null;
         }
+    }
+    static getValBySectionArr(originalVal, sectionArr) {
+        let newVal = originalVal;
+        for (let a of sectionArr) {
+            if (newVal == null) {
+                break;
+            }
+            newVal = newVal[a];
+        }
+        return newVal;
+    }
+    static getValBySectionStr(originalVal, keysStr) {
+        let sectionArr = keysStr.split('.').filter(a => a);
+        return Utils.getValBySectionArr(originalVal, sectionArr);
+    }
+    /**
+     * 获取指定类型的对象
+     * @param type 指定的类型
+     * @param sourceVal 原始对象
+     * @param valIfNull 如果originalVal == null则返回的值
+     */
+    static getTypeSpecifiedValue(type, sourceVal, valIfNull = null) {
+        if (sourceVal == null) {
+            return valIfNull;
+        }
+        switch (type) {
+            case Number:
+            case Boolean:
+                return type(sourceVal);
+            case String:
+                return type(sourceVal).trim();
+            case Date:
+                return new Date(sourceVal);
+            default:
+                let newVal = Reflect.construct(type, []);
+                let sourceFields = Reflect.getMetadata('$sourceFields', type.prototype) || {};
+                for (let sourceField in sourceVal) {
+                    let sourceFieldVal = sourceVal[sourceField];
+                    let typeSpecifiedMap = sourceFields[sourceField];
+                    if (typeSpecifiedMap == null) {
+                        newVal[sourceField] = sourceFieldVal;
+                    }
+                    else {
+                        let targetField = typeSpecifiedMap.targetName;
+                        if (typeSpecifiedMap.typeSpecifiedType == TypeSpecifiedType_1.TypeSpecifiedType.General) {
+                            newVal[targetField] = this.getTypeSpecifiedValue(typeSpecifiedMap.type, sourceFieldVal);
+                        }
+                        else if (typeSpecifiedMap.typeSpecifiedType == TypeSpecifiedType_1.TypeSpecifiedType.Array) {
+                            if (Array.isArray(sourceFieldVal)) {
+                                newVal[targetField] = sourceFieldVal.map((a) => this.getTypeSpecifiedValue(typeSpecifiedMap.type, a));
+                            }
+                            else {
+                                newVal[targetField] = null;
+                            }
+                        }
+                    }
+                }
+                return newVal;
+        }
+    }
+    /**
+     * 获取指定类型的数组对象
+     * @param type 指定的类型
+     * @param originalVal 原始对象
+     */
+    static getTypeSpecifiedValueArray(type, originalVal, valIfNull = null) {
+        if (originalVal == null) {
+            return valIfNull;
+        }
+        return originalVal.map(a => this.getTypeSpecifiedValue(type, a));
     }
 }
 exports.Utils = Utils;

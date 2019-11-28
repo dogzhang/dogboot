@@ -9,10 +9,10 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-const Component_1 = require("../core/Component");
-const Component_2 = require("./Component");
-const Mapping_1 = require("./Mapping");
+const core_1 = require("../core");
+const Component_1 = require("./Component");
 const DogBootApplication_1 = require("./DogBootApplication");
+const Mapping_1 = require("./Mapping");
 let APIDocController = class APIDocController {
     index() {
         return '/apidoc';
@@ -22,7 +22,7 @@ let APIDocController = class APIDocController {
     }
 };
 __decorate([
-    Component_1.Autowired(() => DogBootApplication_1.DogBootApplication),
+    core_1.Autowired(() => DogBootApplication_1.DogBootApplication),
     __metadata("design:type", DogBootApplication_1.DogBootApplication)
 ], APIDocController.prototype, "app", void 0);
 __decorate([
@@ -38,7 +38,7 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], APIDocController.prototype, "action", null);
 APIDocController = __decorate([
-    Component_2.Controller()
+    Component_1.Controller()
 ], APIDocController);
 exports.APIDocController = APIDocController;
 //# sourceMappingURL=APIDocController.js.map

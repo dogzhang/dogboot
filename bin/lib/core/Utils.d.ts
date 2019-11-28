@@ -1,5 +1,5 @@
 /**
- * 仅仅被dogboot使用的内部工具方法
+ * 一些工具方法
  */
 export declare class Utils {
     /**
@@ -34,11 +34,26 @@ export declare class Utils {
     static getAppRootPath(): string;
     private static execRootPath;
     static getExecRootPath(): string;
-    static getConfigFilename(configName: string): string;
+    static getConfigFilename(): string;
     /**
      * 获取配置值
      * @param target 配置类型
      */
-    static getConfigValue<T>(target: new (...args: any[]) => T): [T, string];
+    static getConfigValue<T>(target: new (...args: any[]) => T): T;
     static tryRequire(filePath: string): any;
+    static getValBySectionArr(originalVal: any, sectionArr: string[]): any;
+    static getValBySectionStr(originalVal: any, keysStr: string): any;
+    /**
+     * 获取指定类型的对象
+     * @param type 指定的类型
+     * @param sourceVal 原始对象
+     * @param valIfNull 如果originalVal == null则返回的值
+     */
+    static getTypeSpecifiedValue<T>(type: Function | (new (...args: any[]) => T), sourceVal: any, valIfNull?: T): T;
+    /**
+     * 获取指定类型的数组对象
+     * @param type 指定的类型
+     * @param originalVal 原始对象
+     */
+    static getTypeSpecifiedValueArray<T>(type: Function | (new (...args: any[]) => T), originalVal: any[], valIfNull?: T[]): T[];
 }

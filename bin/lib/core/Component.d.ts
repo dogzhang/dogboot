@@ -21,10 +21,12 @@ export declare function StartUp(order?: number): (target: new (...args: any[]) =
  *     5、低优先级ActionFilter.DoAfter
  * 任何DoBefore导致ctx.status != 404都将阻止后续步骤的执行，但是Controller.Action执行成功后后续的DoAfter都会执行
  * ActionFilter是一种特殊的Component
- * @param order 优先级，值越大优先级越高
- * @param area 作用域限制，比如：/app，表示对controller/app内的控制器生效；/app/v1，则进一步深入到app下的v1文件夹，默认为空表示对所有控制器有效
+ * @param opts order：优先级，值越大优先级越高，scope：作用域，匹配ctx.path，默认'/'表示作用于全部action
  */
-export declare function GlobalActionFilter(order?: number, area?: string): (target: new (...args: any[]) => {}) => void;
+export declare function GlobalActionFilter(opts?: {
+    order?: number;
+    scope?: string;
+}): (target: new (...args: any[]) => {}) => void;
 /**
  * 标记此类为局部请求过滤器，除非被显式使用，否则不会生效，可以作用于Controller以及Action
  * 该过滤器优先级高于全局，一个Controller或者Action同时使用多个局部过滤器时，靠前的优先级更高
@@ -35,9 +37,11 @@ export declare function ActionFilter(target: new (...args: any[]) => {}): void;
  * 标记此类为全局异常过滤器，此类将会被dogboot自动扫描到并且应用到所有的控制器以及其Action
  * 注意，ExceptionFilter的顺序没有明确规定，只能被一个处理器匹配到
  * ExceptionFilter是一种特殊的Component
- * @param area 作用域限制，比如：/app，表示对controller/app内的控制器生效；/app/v1，则进一步深入到app下的v1文件夹，默认为空表示对所有控制器有效
+ * @param scope 作用域限制，匹配ctx.path，默认'/'表示作用与全部action
  */
-export declare function GlobalExceptionFilter(area?: string): (target: new (...args: any[]) => {}) => void;
+export declare function GlobalExceptionFilter(opts?: {
+    scope?: string;
+}): (target: new (...args: any[]) => {}) => void;
 /**
  * 标记此类为局部异常过滤器，除非被显式使用，否则不会生效，可以作用于Controller以及Action
  * 该过滤器优先级高于全局，一个Controller或者Action同时使用多个局部过滤器时，只会使用第一个
@@ -59,7 +63,7 @@ export declare function Config(opts?: {
  */
 export declare function Autowired(type: (new (...args: any[]) => {}) | (() => new (...args: any[]) => {})): (target: any, name: string) => void;
 /**
- * 在组件中标记一个方法，使其在组件初始化时执行，支持异步方法
+ * 在组件中标记一个方法，使其在组件初始化时执行，支持异步方法，并且会传入热更新前的实例作为参数
  */
 export declare function Init(target: any, name: string): void;
 /**
@@ -87,10 +91,6 @@ export declare function UseExceptionFilter(exceptionFilter: new (...args: any[])
  * @param type 要处理的异常类型
  */
 export declare function ExceptionHandler(type: new (...args: any[]) => Error | any): (target: any, name: string) => void;
-/**
- * 标记此字段在reload的时候，保持在内存中并且继承到新的实例
- */
-export declare function KeepAlive(target: any, name: string): void;
 /**
  * 标记一个类为测试类，程序启动完成后，将会自动执行这些测试
  * 所有的测试类都必须放在test目录，或者另外指定的目录

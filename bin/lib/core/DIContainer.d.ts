@@ -1,17 +1,8 @@
-/// <reference types="node" />
-import { EventEmitter } from 'events';
-export declare class DIContainer extends EventEmitter {
-    private componentInstanceMapKeyByFilenameAndClassName;
+export declare class DIContainer {
+    readonly startTime: number;
+    private componentSet;
     private componentInstanceMap;
-    private watcher;
-    private opts;
-    private configPathSet;
     constructor();
-    on<K extends 'reload', T extends {
-        'reload': () => void;
-    }>(event: K, listener: T[K]): this;
-    private watch;
-    clear(): void;
     /**
      * 将已经实例化好的对象添加进容器
      * @param target 类型
@@ -19,7 +10,7 @@ export declare class DIContainer extends EventEmitter {
      */
     setComponentInstance<T>(target: new (...args: any[]) => T, instance: T): void;
     /**
-     * 以同步的方式根据指定类型从容器取出实例
+     * 以同步的方式根据指定类型从容器取出实例，需要确保此时类实例已经存在
      * @param target 类型
      */
     getComponentInstance<T>(target: new (...args: any[]) => T): T;
@@ -33,6 +24,11 @@ export declare class DIContainer extends EventEmitter {
     private createComponentInstance;
     private getParamInstances;
     private resolveAutowiredDependences;
-    private getConfigValue;
-    private addConfigFilePath;
+    loadFile(filename: string): this;
+    loadDir(dir: string): this;
+    getComponentsByTag(tag: string): (new (...args: any[]) => {})[];
+    private initStartUps;
+    private test;
+    runAsync(): Promise<this>;
 }
+export declare function getContainer(): DIContainer;

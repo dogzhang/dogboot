@@ -18,8 +18,8 @@ exports.Component = Component;
  */
 function StartUp(order = 0) {
     return function (target) {
-        target.prototype.$isStartUp = true;
-        target.prototype.$order = order;
+        Reflect.defineMetadata('$isStartUp', true, target.prototype);
+        Reflect.defineMetadata('$order', order, target.prototype);
         Utils_1.Utils.markAsComponent(target);
     };
 }
@@ -34,14 +34,17 @@ exports.StartUp = StartUp;
  *     5、低优先级ActionFilter.DoAfter
  * 任何DoBefore导致ctx.status != 404都将阻止后续步骤的执行，但是Controller.Action执行成功后后续的DoAfter都会执行
  * ActionFilter是一种特殊的Component
- * @param order 优先级，值越大优先级越高
- * @param area 作用域限制，比如：/app，表示对controller/app内的控制器生效；/app/v1，则进一步深入到app下的v1文件夹，默认为空表示对所有控制器有效
+ * @param opts order：优先级，值越大优先级越高，scope：作用域，匹配ctx.path，默认'/'表示作用于全部action
  */
-function GlobalActionFilter(order = 0, area = '/') {
+function GlobalActionFilter(opts) {
     return function (target) {
-        target.prototype.$isGlobalActionFilter = true;
-        target.prototype.$order = order;
-        target.prototype.$area = area;
+        var _a, _b;
+        opts = opts || {};
+        opts.order = (_a = opts.order, (_a !== null && _a !== void 0 ? _a : 0));
+        opts.scope = (_b = opts.scope, (_b !== null && _b !== void 0 ? _b : '/'));
+        Reflect.defineMetadata('$isGlobalActionFilter', true, target.prototype);
+        Reflect.defineMetadata('$order', opts.order, target.prototype);
+        Reflect.defineMetadata('$scope', opts.scope, target.prototype);
         Utils_1.Utils.markAsComponent(target);
     };
 }
@@ -52,7 +55,7 @@ exports.GlobalActionFilter = GlobalActionFilter;
  * 配合UseActionFilter来使用
  */
 function ActionFilter(target) {
-    target.prototype.$isActionFilter = true;
+    Reflect.defineMetadata('$isActionFilter', true, target.prototype);
     Utils_1.Utils.markAsComponent(target);
 }
 exports.ActionFilter = ActionFilter;
@@ -60,12 +63,15 @@ exports.ActionFilter = ActionFilter;
  * 标记此类为全局异常过滤器，此类将会被dogboot自动扫描到并且应用到所有的控制器以及其Action
  * 注意，ExceptionFilter的顺序没有明确规定，只能被一个处理器匹配到
  * ExceptionFilter是一种特殊的Component
- * @param area 作用域限制，比如：/app，表示对controller/app内的控制器生效；/app/v1，则进一步深入到app下的v1文件夹，默认为空表示对所有控制器有效
+ * @param scope 作用域限制，匹配ctx.path，默认'/'表示作用与全部action
  */
-function GlobalExceptionFilter(area = '/') {
+function GlobalExceptionFilter(opts) {
     return function (target) {
-        target.prototype.$isGlobalExceptionFilter = true;
-        target.prototype.$area = area;
+        var _a;
+        opts = opts || {};
+        opts.scope = (_a = opts.scope, (_a !== null && _a !== void 0 ? _a : '/'));
+        Reflect.defineMetadata('$isGlobalExceptionFilter', true, target.prototype);
+        Reflect.defineMetadata('$scope', opts.scope, target.prototype);
         Utils_1.Utils.markAsComponent(target);
     };
 }
@@ -76,7 +82,7 @@ exports.GlobalExceptionFilter = GlobalExceptionFilter;
  * 配合UseExceptionFilter来使用
  */
 function ExceptionFilter(target) {
-    target.prototype.$isExceptionFilter = true;
+    Reflect.defineMetadata('$isExceptionFilter', true, target.prototype);
     Utils_1.Utils.markAsComponent(target);
 }
 exports.ExceptionFilter = ExceptionFilter;
@@ -88,9 +94,9 @@ exports.ExceptionFilter = ExceptionFilter;
 function Config(opts) {
     return function (target) {
         opts = opts || {};
-        target.prototype.$isConfig = true;
-        target.prototype.$configField = opts.field || '';
-        target.prototype.$configName = opts.name || 'config.json';
+        Reflect.defineMetadata('$isConfig', true, target.prototype);
+        Reflect.defineMetadata('$configField', opts.field || '', target.prototype);
+        Reflect.defineMetadata('$configName', opts.name || 'config.json', target.prototype);
         Utils_1.Utils.markAsComponent(target);
     };
 }
@@ -105,16 +111,17 @@ function Autowired(type) {
             console.error(`${target.constructor.name}中存在不正确的循环依赖${name}，请使用@Autowired(() => type of ${name})注入此依赖项`);
             process.abort();
         }
-        target.$autowiredMap = target.$autowiredMap || new Map();
-        target.$autowiredMap.set(name, type);
+        let $autowiredMap = Reflect.getMetadata('$autowiredMap', target) || new Map();
+        $autowiredMap.set(name, type);
+        Reflect.defineMetadata('$autowiredMap', $autowiredMap, target);
     };
 }
 exports.Autowired = Autowired;
 /**
- * 在组件中标记一个方法，使其在组件初始化时执行，支持异步方法
+ * 在组件中标记一个方法，使其在组件初始化时执行，支持异步方法，并且会传入热更新前的实例作为参数
  */
 function Init(target, name) {
-    target.$initMethod = name;
+    Reflect.defineMetadata('$initMethod', name, target);
 }
 exports.Init = Init;
 /**
@@ -124,18 +131,19 @@ exports.Init = Init;
  */
 function UseActionFilter(actionFilter) {
     return function (target, name = null) {
-        if (!actionFilter.prototype.$isActionFilter) {
+        if (!Reflect.getMetadata('$isActionFilter', actionFilter.prototype)) {
             console.warn(`UseActionFilter只能使用ActionFilter，此actionFilter不符合要求，${actionFilter.name}将不会生效`);
             return;
         }
         if (name == null) {
-            target.prototype.$actionFilters = target.prototype.$actionFilters || [];
-            target.prototype.$actionFilters.unshift(actionFilter);
+            let $actionFilters = Reflect.getMetadata('$actionFilters', target.prototype) || [];
+            $actionFilters.unshift(actionFilter);
+            Reflect.defineMetadata('$actionFilters', $actionFilters, target.prototype);
         }
         else {
-            let action = target[name];
-            action.$actionFilters = action.$actionFilters || [];
-            action.$actionFilters.unshift(actionFilter);
+            let $actionFilters = Reflect.getMetadata('$actionFilters', target, name) || [];
+            $actionFilters.unshift(actionFilter);
+            Reflect.defineMetadata('$actionFilters', $actionFilters, target, name);
         }
     };
 }
@@ -144,16 +152,18 @@ exports.UseActionFilter = UseActionFilter;
  * 在ActionFilter标记一个方法，此方法将在Action执行前执行
  */
 function DoBefore(target, name) {
-    target.$actionHandlerMap = target.$actionHandlerMap || new Map();
-    target.$actionHandlerMap.set(DoBefore, name);
+    let $actionHandlerMap = Reflect.getMetadata('$actionHandlerMap', target) || new Map();
+    $actionHandlerMap.set(DoBefore, name);
+    Reflect.defineMetadata('$actionHandlerMap', $actionHandlerMap, target);
 }
 exports.DoBefore = DoBefore;
 /**
  * 在ActionFilter标记一个方法，此方法将在Action执行后执行
  */
 function DoAfter(target, name) {
-    target.$actionHandlerMap = target.$actionHandlerMap || new Map();
-    target.$actionHandlerMap.set(DoAfter, name);
+    let $actionHandlerMap = Reflect.getMetadata('$actionHandlerMap', target) || new Map();
+    $actionHandlerMap.set(DoAfter, name);
+    Reflect.defineMetadata('$actionHandlerMap', $actionHandlerMap, target);
 }
 exports.DoAfter = DoAfter;
 /**
@@ -163,18 +173,19 @@ exports.DoAfter = DoAfter;
  */
 function UseExceptionFilter(exceptionFilter) {
     return function (target, name = null) {
-        if (!exceptionFilter.prototype.$isExceptionFilter) {
+        if (!Reflect.getMetadata('$isExceptionFilter', exceptionFilter.prototype)) {
             console.warn(`UseExceptionFilter只能使用ExceptionFilter，此exceptionFilter不符合要求，${exceptionFilter.name}将不会生效`);
             return;
         }
         if (name == null) {
-            target.prototype.$exceptionFilters = target.prototype.$exceptionFilters || [];
-            target.prototype.$exceptionFilters.unshift(exceptionFilter);
+            let $exceptionFilters = Reflect.getMetadata('$exceptionFilters', target.prototype) || [];
+            $exceptionFilters.unshift(exceptionFilter);
+            Reflect.defineMetadata('$exceptionFilters', $exceptionFilters, target.prototype);
         }
         else {
-            let action = target[name];
-            action.$exceptionFilters = action.$exceptionFilters || [];
-            action.$exceptionFilters.unshift(exceptionFilter);
+            let $exceptionFilters = Reflect.getMetadata('$exceptionFilters', target, name) || [];
+            $exceptionFilters.unshift(exceptionFilter);
+            Reflect.defineMetadata('$exceptionFilters', $exceptionFilters, target, name);
         }
     };
 }
@@ -185,25 +196,18 @@ exports.UseExceptionFilter = UseExceptionFilter;
  */
 function ExceptionHandler(type) {
     return function (target, name) {
-        target.$exceptionHandlerMap = target.$exceptionHandlerMap || new Map();
-        target.$exceptionHandlerMap.set(type, name);
+        let $exceptionHandlerMap = Reflect.getMetadata('$exceptionHandlerMap', target) || new Map();
+        $exceptionHandlerMap.set(type, name);
+        Reflect.defineMetadata('$exceptionHandlerMap', $exceptionHandlerMap, target);
     };
 }
 exports.ExceptionHandler = ExceptionHandler;
-/**
- * 标记此字段在reload的时候，保持在内存中并且继承到新的实例
- */
-function KeepAlive(target, name) {
-    target.$aliveFields = target.$aliveFields || [];
-    target.$aliveFields.push(name);
-}
-exports.KeepAlive = KeepAlive;
 /**
  * 标记一个类为测试类，程序启动完成后，将会自动执行这些测试
  * 所有的测试类都必须放在test目录，或者另外指定的目录
  */
 function Test(target) {
-    target.prototype.$isTest = true;
+    Reflect.defineMetadata('$isTest', true, target.prototype);
     Utils_1.Utils.markAsComponent(target);
 }
 exports.Test = Test;
@@ -212,8 +216,9 @@ exports.Test = Test;
  * 仅能在Test类中使用
  */
 function Spec(target, name) {
-    target.$testMethods = target.$testMethods || [];
-    target.$testMethods.push(name);
+    let $testMethods = Reflect.getMetadata('$testMethods', target) || [];
+    $testMethods.push(name);
+    Reflect.defineMetadata('$testMethods', $testMethods, target);
 }
 exports.Spec = Spec;
 //# sourceMappingURL=Component.js.map

@@ -9,19 +9,12 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-const Component_1 = require("../core/Component");
-const TypeConvert_1 = require("../core/TypeConvert");
+const core_1 = require("../core");
 const CorsOptions_1 = require("./CorsOptions");
 let DogBootOptions = class DogBootOptions {
     constructor() {
         this.port = 3000;
         this.prefix = '';
-        this.staticRootPathName = 'public';
-        this.controllerRootPathName = 'controller';
-        this.startupRootPathName = 'startup';
-        this.filterRootPathName = 'filter';
-        this.enableTest = false;
-        this.testRootPathName = 'test';
         this.enableApidoc = false;
         /**
          * 是否允许跨域
@@ -34,51 +27,27 @@ let DogBootOptions = class DogBootOptions {
     }
 };
 __decorate([
-    TypeConvert_1.Typed(),
+    core_1.Typed(),
     __metadata("design:type", Number)
 ], DogBootOptions.prototype, "port", void 0);
 __decorate([
-    TypeConvert_1.Typed(),
+    core_1.Typed(),
     __metadata("design:type", String)
 ], DogBootOptions.prototype, "prefix", void 0);
 __decorate([
-    TypeConvert_1.Typed(),
-    __metadata("design:type", String)
-], DogBootOptions.prototype, "staticRootPathName", void 0);
-__decorate([
-    TypeConvert_1.Typed(),
-    __metadata("design:type", String)
-], DogBootOptions.prototype, "controllerRootPathName", void 0);
-__decorate([
-    TypeConvert_1.Typed(),
-    __metadata("design:type", String)
-], DogBootOptions.prototype, "startupRootPathName", void 0);
-__decorate([
-    TypeConvert_1.Typed(),
-    __metadata("design:type", String)
-], DogBootOptions.prototype, "filterRootPathName", void 0);
-__decorate([
-    TypeConvert_1.Typed(),
-    __metadata("design:type", Boolean)
-], DogBootOptions.prototype, "enableTest", void 0);
-__decorate([
-    TypeConvert_1.Typed(),
-    __metadata("design:type", String)
-], DogBootOptions.prototype, "testRootPathName", void 0);
-__decorate([
-    TypeConvert_1.Typed(),
+    core_1.Typed(),
     __metadata("design:type", Boolean)
 ], DogBootOptions.prototype, "enableApidoc", void 0);
 __decorate([
-    TypeConvert_1.Typed(),
+    core_1.Typed(),
     __metadata("design:type", Boolean)
 ], DogBootOptions.prototype, "enableCors", void 0);
 __decorate([
-    TypeConvert_1.Typed(),
+    core_1.Typed(),
     __metadata("design:type", CorsOptions_1.CorsOptions)
 ], DogBootOptions.prototype, "corsOptions", void 0);
 DogBootOptions = __decorate([
-    Component_1.Config({ field: 'app' })
+    core_1.Config({ field: 'app' })
 ], DogBootOptions);
 exports.DogBootOptions = DogBootOptions;
 //# sourceMappingURL=DogBootOptions.js.map
