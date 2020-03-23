@@ -9,9 +9,6 @@ export class DogBootOptions {
     @Typed()
     prefix?: string = ''
 
-    @Typed()
-    enableApidoc?: boolean = false
-
     /**
      * 是否允许跨域
      */

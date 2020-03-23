@@ -90,7 +90,7 @@ export class Home7Controller {
 
     @GetMapping('/clear')
     clear() {
-        getCache().deleteByNameAndKeys('Home7Controller:index', [])
+        getCache().delete('Home7Controller', 'index')
         return 'ok'
     }
 }

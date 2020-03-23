@@ -64,21 +64,27 @@ class DIContainer {
             if (!Reflect.getMetadata('$isComponent', target.prototype)) {
                 throw new Error(`${target.name}没有被注册为可自动解析的组件，请至少添加@Component、@StartUp、@Controller、@Config等装饰器中的一种`);
             }
-            let instance = null;
-            if (Reflect.getMetadata('$isConfig', target.prototype)) {
-                instance = Utils_1.Utils.getConfigValue(target);
-                this.componentInstanceMap.set(target, instance);
-            }
-            else {
-                instance = Reflect.construct(target, yield this.getParamInstances(target));
-                this.componentInstanceMap.set(target, instance);
-                yield this.resolveAutowiredDependences(instance);
-                let initMethod = Reflect.getMetadata('$initMethod', target.prototype);
-                if (initMethod) {
-                    yield instance[initMethod]();
+            try {
+                let instance = null;
+                if (Reflect.getMetadata('$isConfig', target.prototype)) {
+                    instance = Utils_1.Utils.getConfigValue(target);
+                    this.componentInstanceMap.set(target, instance);
                 }
+                else {
+                    instance = Reflect.construct(target, yield this.getParamInstances(target));
+                    this.componentInstanceMap.set(target, instance);
+                    yield this.resolveAutowiredDependences(instance);
+                    let initMethod = Reflect.getMetadata('$initMethod', target.prototype);
+                    if (initMethod) {
+                        yield instance[initMethod]();
+                    }
+                }
+                return instance;
             }
-            return instance;
+            catch (error) {
+                console.error(`初始化${target.name}时发生错误`);
+                throw error;
+            }
         });
     }
     getParamInstances(target) {
@@ -109,6 +115,19 @@ class DIContainer {
             }
         });
     }
+    loadClass(_class) {
+        if (Reflect.getMetadata('$isComponent', _class.prototype)) {
+            this.componentSet.add(_class);
+        }
+        return this;
+    }
+    loadModule(_Module) {
+        Object.values(_Module).filter(a => a instanceof Function)
+            .forEach((a) => {
+            this.loadClass(a);
+        });
+        return this;
+    }
     loadFile(filename) {
         if (require.cache[filename]) {
             return;
@@ -117,10 +136,7 @@ class DIContainer {
         if (_Module == null) {
             return;
         }
-        Object.values(_Module).filter(a => a instanceof Function && Reflect.getMetadata('$isComponent', a.prototype))
-            .forEach((a) => {
-            this.componentSet.add(a);
-        });
+        this.loadModule(_Module);
         return this;
     }
     loadDir(dir) {
@@ -148,20 +164,24 @@ class DIContainer {
             console.log('Running tests...');
             let startTime = Date.now();
             let passed = 0;
-            let faild = 0;
+            let failed = 0;
             let total = 0;
             for (let _Class of testClassList) {
                 let _prototype = _Class.prototype;
                 let testInstance = yield this.getComponentInstanceFromFactory(_Class);
-                for (let testMethod of Reflect.getMetadata('$testMethods', _prototype)) {
+                let testMethods = Reflect.getMetadata('$testMethods', _prototype);
+                if (!testMethods) {
+                    continue;
+                }
+                for (let testMethod of testMethods) {
                     try {
                         yield testInstance[testMethod]();
                         passed += 1;
                     }
                     catch (error) {
-                        console.error(`Test faild at ${_Class.name}.${testMethod}`);
+                        console.error(`Test failed at ${_Class.name}.${testMethod}`);
                         console.trace(error.stack);
-                        faild += 1;
+                        failed += 1;
                     }
                     finally {
                         total += 1;
@@ -169,8 +189,8 @@ class DIContainer {
                 }
             }
             let endTime = Date.now();
-            console.log(`All tests run in ${endTime - startTime}ms`);
-            console.table([{ passed, faild, total }]);
+            console.log(`All tests ran in ${endTime - startTime}ms`);
+            console.table([{ passed, failed, total }]);
         });
     }
     runAsync() {

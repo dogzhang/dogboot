@@ -8,7 +8,6 @@ import { Server } from 'http';
 
 import { DIContainer, DoAfter, DoBefore, Init, InnerCachable, StartUp, Utils } from '../core';
 import { ActionFilterContext } from './ActionFilterContext';
-import { APIDocController } from './APIDocController';
 import { DogBootOptions } from './DogBootOptions';
 import { LazyResult } from './LazyResult';
 import { NotFoundException } from './NotFoundException';
@@ -27,7 +26,6 @@ export class DogBootApplication {
     @Init
     async init() {
         this.build()
-        this.buildApidoc()
         this.useNotFoundExceptionHandler()
 
         let port = this.opts.port
@@ -41,7 +39,8 @@ export class DogBootApplication {
         await this.initFilters()
 
         let endTime = Date.now()
-        console.log(`Your application has started at ${port} in ${endTime - this.container.startTime}ms`)
+        let nowStr = Utils.formatDate(new Date(), 'yyyy-MM-dd HH:mm:ss')
+        console.log(`[${nowStr}] Your application has started at ${port} in ${endTime - this.container.startTime}ms`)
 
         return this
     }
@@ -49,7 +48,13 @@ export class DogBootApplication {
     private build() {
         let publicRootPath = path.join(Utils.getAppRootPath(), 'public')
         this.app.use(koaStatic(publicRootPath))
-        this.app.use(koaBody())
+        this.app.use(koaBody({
+            jsonLimit: 100 * 1024 * 1024,
+            multipart: true,
+            formidable: {
+                maxFileSize: 100 * 1024 * 1024
+            }
+        }))
 
         if (this.opts.enableCors) {
             this.app.use(cors(this.opts.corsOptions))
@@ -82,14 +87,7 @@ export class DogBootApplication {
             try {
                 await this.handleContext(actionName, _Class, ctx)
             } catch (err) {
-                let filtersOnController = Reflect.getMetadata('$exceptionFilters', _prototype) || []
-                let filtersOnAction = Reflect.getMetadata('$exceptionFilters', _prototype, actionName) || []
-                let filters = this.container.getComponentsByTag('$isGlobalExceptionFilter').concat(filtersOnController, filtersOnAction).reverse()
-
-                let [exceptionFilter, handlerName] = this.getExceptionHandlerName(err.constructor, ctx.path, filters)
-                if (!handlerName) {
-                    [exceptionFilter, handlerName] = this.getExceptionHandlerName(Error, ctx.path, filters)
-                }
+                let [exceptionFilter, handlerName] = this.getExceptionFilterAndHandlerName(_prototype, actionName, err.constructor, ctx.path)
                 if (!handlerName) {
                     throw err
                 }
@@ -98,11 +96,26 @@ export class DogBootApplication {
         })
     }
 
+    @InnerCachable({ keys: [[0, ''], [1, ''], [2, ''], [3, '']] })
+    private getExceptionFilterAndHandlerName(_prototype: any, actionName: string, errConstructor: any, ctxPath: string): [new (...args: any[]) => {}, string] {
+        let filtersOnController = Reflect.getMetadata('$exceptionFilters', _prototype) || []
+        let filtersOnAction = Reflect.getMetadata('$exceptionFilters', _prototype, actionName) || []
+        let filters = this.container.getComponentsByTag('$isGlobalExceptionFilter').concat(filtersOnController, filtersOnAction).reverse()
+
+        let [exceptionFilter, handlerName] = this.getExceptionHandlerName(errConstructor, ctxPath, filters)
+        if (!handlerName) {
+            [exceptionFilter, handlerName] = this.getExceptionHandlerName(Error, ctxPath, filters)
+        }
+
+        return [exceptionFilter, handlerName]
+    }
+
     private async handleContext(actionName: string, _Class: new (...args: any[]) => {}, ctx: Koa.Context) {
         let _prototype = _Class.prototype
         let instance = await this.container.getComponentInstanceFromFactory(_prototype.constructor)
         let $params = Reflect.getMetadata('$params', _prototype, actionName) || []//使用@Bind...注册的参数，没有使用@Bind...装饰的参数将保持为null
         let $paramTypes: Function[] = Reflect.getMetadata('design:paramtypes', _prototype, actionName) || []//全部的参数类型
+        let $paramValidators: Function[][] = Reflect.getMetadata('$paramValidators', _prototype, actionName) || []//全部的参数验证器
         let params = $params.map((b: Function, idx: number) => {
             let originalValArr = b(ctx)
             let originalVal = originalValArr[0]
@@ -114,20 +127,28 @@ export class DogBootApplication {
                 return originalVal
             }
         })
+        /**
+         * 验证Action内参数
+         */
+        for (let i = 0; i < params.length; i++) {
+            let validators = $paramValidators[i]
+            if (validators == null) {
+                continue
+            }
+            for (let validator of validators) {
+                validator(params[i])
+            }
+        }
+        /**
+         * 验证Action外参数
+         */
         for (let b of params) {
             Utils.validateModel(b)
         }
         let actionFilterContext = new ActionFilterContext(ctx, params, $paramTypes, _Class, actionName)
 
-        let filtersOnController = Reflect.getMetadata('$actionFilters', _prototype) || []
-        let filtersOnAction = Reflect.getMetadata('$actionFilters', _prototype, actionName) || []
-        let globalActionFilters = this.getGlobalActionFiltersOfThisPath(ctx.path)
-        let filters = globalActionFilters.concat(filtersOnController, filtersOnAction)
-        let filterAndInstances: [new (...args: any[]) => {}, any][] = []
-        for (let filter of filters) {
-            let filterInstance = await this.container.getComponentInstanceFromFactory(filter)
-            filterAndInstances.push([filter, filterInstance])
-
+        let filterAndInstances = await this.getFilterAndInstances(_prototype, actionName, ctx.path)
+        for (let [filter, filterInstance] of filterAndInstances) {
             let handlerName = Reflect.getMetadata('$actionHandlerMap', filter.prototype).get(DoBefore)
             if (!handlerName) {
                 continue
@@ -156,6 +177,21 @@ export class DogBootApplication {
             }
             await filterInstance[handlerName](actionFilterContext)
         }
+    }
+
+    @InnerCachable({ keys: [[0, ''], [1, ''], [2, '']] })
+    private async getFilterAndInstances(_prototype: any, actionName: string, ctxPath: string) {
+        let filtersOnController = Reflect.getMetadata('$actionFilters', _prototype) || []
+        let filtersOnAction = Reflect.getMetadata('$actionFilters', _prototype, actionName) || []
+        let globalActionFilters = this.getGlobalActionFiltersOfThisPath(ctxPath)
+        let filters = globalActionFilters.concat(filtersOnController, filtersOnAction)
+        let filterAndInstances: [new (...args: any[]) => {}, any][] = []
+        for (let filter of filters) {
+            let filterInstance = await this.container.getComponentInstanceFromFactory(filter)
+            filterAndInstances.push([filter, filterInstance])
+        }
+
+        return filterAndInstances
     }
 
     @InnerCachable({ keys: [[0, '']] })
@@ -212,13 +248,6 @@ export class DogBootApplication {
         for (let filter of globalExceptionFilters) {
             await this.container.getComponentInstanceFromFactory(filter)
         }
-    }
-
-    private buildApidoc() {
-        if (!this.opts.enableApidoc) {
-            return
-        }
-        this.checkControllerClass(APIDocController)
     }
 
     private useNotFoundExceptionHandler() {

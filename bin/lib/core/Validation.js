@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+const IllegalActionArgumentException_1 = require("./IllegalActionArgumentException");
 const IllegalArgumentException_1 = require("./IllegalArgumentException");
 /**
  * 指定此Array类型需要验证其确切类型
@@ -15,16 +16,29 @@ exports.Valid = Valid;
  * @param func 验证规则
  */
 function Func(func) {
-    return function (target, name) {
-        let $validator = Reflect.getMetadata('$validator', target) || {};
-        $validator[name] = $validator[name] || [];
-        $validator[name].push(a => {
-            let result = func(a);
-            if (!result[0]) {
-                throw new IllegalArgumentException_1.IllegalArgumentException(result[1], target.constructor.name, name);
-            }
-        });
-        Reflect.defineMetadata('$validator', $validator, target);
+    return function (target, name, index) {
+        if (index == null) {
+            let $validator = Reflect.getMetadata('$validator', target) || {};
+            $validator[name] = $validator[name] || [];
+            $validator[name].push((a) => {
+                let result = func(a);
+                if (!result[0]) {
+                    throw new IllegalArgumentException_1.IllegalArgumentException(result[1], target.constructor.name, name);
+                }
+            });
+            Reflect.defineMetadata('$validator', $validator, target);
+        }
+        else {
+            let $paramValidators = Reflect.getMetadata('$paramValidators', target, name) || [];
+            $paramValidators[index] = $paramValidators[index] || [];
+            $paramValidators[index].push((a) => {
+                let result = func(a);
+                if (!result[0]) {
+                    throw new IllegalActionArgumentException_1.IllegalActionArgumentException(result[1], target.constructor.name, name, index);
+                }
+            });
+            Reflect.defineMetadata('$paramValidators', $paramValidators, target, name);
+        }
     };
 }
 exports.Func = Func;

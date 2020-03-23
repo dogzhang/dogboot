@@ -15,7 +15,6 @@ let DogBootOptions = class DogBootOptions {
     constructor() {
         this.port = 3000;
         this.prefix = '';
-        this.enableApidoc = false;
         /**
          * 是否允许跨域
          */
@@ -34,10 +33,6 @@ __decorate([
     core_1.Typed(),
     __metadata("design:type", String)
 ], DogBootOptions.prototype, "prefix", void 0);
-__decorate([
-    core_1.Typed(),
-    __metadata("design:type", Boolean)
-], DogBootOptions.prototype, "enableApidoc", void 0);
 __decorate([
     core_1.Typed(),
     __metadata("design:type", Boolean)

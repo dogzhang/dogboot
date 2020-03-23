@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 require("./Polyfill");
 __export(require("./Component"));
 __export(require("./DIContainer"));
+__export(require("./IllegalActionArgumentException"));
 __export(require("./IllegalArgumentException"));
 __export(require("./InnerCache"));
 __export(require("./TypeConvert"));

@@ -40,10 +40,10 @@ package.json是npm的包管理清单文件。现在，请打开这个文件，�
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "dogboot": "^1.3.0"
+    "dogboot": "^1.6.0"
   },
   "devDependencies": {
-    "typescript": "^3.5.3"
+    "typescript": "^3.8.3"
   }
 }
 ```
@@ -74,9 +74,9 @@ tsconfig.json是TypeScript项目的可选配置文件，对于dogboot我们建�
 
 打开app.ts，输入以下内容
 ```typescript
-import { createApp } from "dogboot";
+import { DogBootApplication, getContainer } from 'dogboot';
 
-createApp()
+getContainer().loadClass(DogBootApplication).runAsync()
 ```
 打开HomeController.ts，输入以下内容
 ```typescript
@@ -105,18 +105,29 @@ Your application has started at 3000 in xxxms
 ```
 Hello World
 ```
-这就是一个最小可运行的dogboot程序，怎么样，简单吧🙃
-
-当然你肯定不会满足于这个Hello World例子，那就请继续阅读我们的进阶文档吧
-# 更进一步
+这就是一个最小可运行的dogboot程序
+# 设计思想
+dogboot采用组件化设计，程序由一个个组件组成，就像拼积木一样。这些组件都由dogboot提供的一个container管理，包括创建、实例化、注入。
+组件又分为不同的类型，有Startup、Controller、ActionFilter、ExceptionFilter等特殊组件，以及最基本的组件Component。
+应用层需要做的就是把你需要的组件用container装载，然后把container运行起来。
+回顾一下app.ts的代码
+```typescript
+getContainer().loadClass(DogBootApplication).runAsync()
+```
+getContainer是一个全局方法，用于获取dogboot提供的全局唯一的container，然后装载DogBootApplication类，然后是runAsync，将container运行起来。
+runAsync方法中会先自动装载bin目录的组件，等所有组件都装载完成后，开始实例化所有Startup组件。
+DogBootApplication是一个Startup组件，所以会在这一步被实例化。
+为了定位到bin目录位置，dogboot需要知道程序的入口，以及固定的目录结构bin/app.js，通常不需要手动指定程序入口文件，dogboot会使用require.main.filename作为入口，然而你在测试的时候，dogboot程序可能是由测试程序启动的，这时候require.main.filename就不是app.js的路径了，这时候可以使用以下代码手动指定入口
+```typescript
+process.env.dogEntry = __filename
+```
+# 组件
 ## DogBootApplication
 一个dogboot程序是一个DogBootApplication的实例，但是不能通过new DogBootApplication()来创建。
 
-我们提供了createApp()来创建一个程序，比起new DogBootApplication()，这更加减少了使用者出错的可能性，并且便于我们后续扩展功能。
+要使用getContainer().loadClass(DogBootApplication)来装载，然后交由dogboot的全局唯一container来管理DogBootApplication的生命周期。
 
-dogboot会根据自动扫描项目文件，默认会扫描public、controller、startup、filter这些目录，如果需要修改为其他目录，请参考配置
-
-程序会自动判断当前的运行环境，如果是直接运行ts文件，会扫描src目录，如果是运行编译后的js文件，会扫描bin目录。
+程序会自动判断当前的运行环境，如果是直接运行ts文件（使用ts-node运行），会扫描src目录，如果是运行编译后的js文件，会扫描bin目录。
 
 ⚠️所以实际上，我们指定了编译后的文件存放的目录为bin，不能修改。
 ## @Controller
@@ -674,27 +685,27 @@ index(@BindContext ctx:any){
 ## dogboot的配置
 到目前为止，我还没有介绍怎样让我们的程序监听不同的端口，毕竟你不可能总是使用3000端口，是的，这需要配置
 
-最简单的配置是createApp(port: number)，这样可以指定端口。
+dogboot会优先从环境变量获取端口参数，这在通过命令行启动程序时很有用
+```bash
+dogPort=3002 node ./bin/app.js
+```
+这样，dogboot会监听3002端口，而不会理会你在配置文件指定的端口
 
-稍微复杂一点的是createApp({port: number, entry: string})，多了一个entry参数。entry是程序的启动文件路径，这个参数很重要，因为它涉及到dogboot的自动扫描。大部分情况下，不需要特别设置这个参数，dogboot会默认使用process.mainModule.filename，但是在你使用pm2等守护进程管理软件的时候，process.mainModule.filename可能就不是app.js了，这时候就需要指定一下entry了，一般只需要createApp(port: 3000, entry: __filename)就可以了。
+当然，既然是环境变量，所以也可以在程序内用代码指定
+```typescript
+process.env.dogPort = '3002'
+```
+这样指定端口等效于从命令行指定
 
-如果将所有配置都通过程序来传递，会显得很臃肿，并且不利于区分测试环境与生产环境，所以我们将更多的配置定向到配置文件。
-
-dogboot会尝试从config.json的app节中获取配置，如果配置没有找到，会使用dogboot内置的预设配置。全部配置如下
+再来说说配置文件，dogboot会尝试从config.json的app节中获取配置，如果配置没有找到，会使用dogboot内置的预设配置。全部配置如下
 
 名称 | 类型 | 默认值 | 说明
 ------------ | ------------- | ------------- | -------------
 port | number | 3000 | 优先从createApp(port: number)获取参数
 prefix | string | undefined | 路由前缀，比如赋值为/api，那么所有的路由前面需要加上/api，/home/index + /api = /api/home/index
 staticRootPathName | string | public | 静态资源的根目录
-controllerRootPathName | string | controller | 控制器的根目录
-startupRootPathName | string | startup | 启动器的根目录
-filterRootPathName | string | filter | 过滤器的根目录
-enableApidoc | boolean | false | 是否开启api文档，此功能还没有实现
 enableCors | boolean | false | 是否开启跨域
 corsOptions | CorsOptions | new CorsOptions() | 跨域选项，参考下面的CorsOptions
-enableHotload | boolean | false | 是否开启热更新，dogboot独特的、强大的热更新功能，还在实验阶段，请勿在生产环境开启
-hotloadDebounceInterval | number | 1000 | hotloadDebounceInterval毫秒后没有文件更新就开启重新载入程序
 
 CorsOptions，具体说明请参考[koa2-cors](https://github.com/zadzbw/koa2-cors)
 

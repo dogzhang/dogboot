@@ -1,6 +1,7 @@
 import './Polyfill';
 export * from './Component';
 export * from './DIContainer';
+export * from './IllegalActionArgumentException';
 export * from './IllegalArgumentException';
 export * from './InnerCache';
 export * from './TypeConvert';

@@ -52,22 +52,27 @@ export class DIContainer {
             throw new Error(`${target.name}没有被注册为可自动解析的组件，请至少添加@Component、@StartUp、@Controller、@Config等装饰器中的一种`)
         }
 
-        let instance = null
-        if (Reflect.getMetadata('$isConfig', target.prototype)) {
-            instance = Utils.getConfigValue(target)
-            this.componentInstanceMap.set(target, instance)
-        } else {
-            instance = Reflect.construct(target, await this.getParamInstances(target))
-            this.componentInstanceMap.set(target, instance)
-            await this.resolveAutowiredDependences(instance)
+        try {
+            let instance = null
+            if (Reflect.getMetadata('$isConfig', target.prototype)) {
+                instance = Utils.getConfigValue(target)
+                this.componentInstanceMap.set(target, instance)
+            } else {
+                instance = Reflect.construct(target, await this.getParamInstances(target))
+                this.componentInstanceMap.set(target, instance)
+                await this.resolveAutowiredDependences(instance)
 
-            let initMethod = Reflect.getMetadata('$initMethod', target.prototype)
-            if (initMethod) {
-                await instance[initMethod]()
+                let initMethod = Reflect.getMetadata('$initMethod', target.prototype)
+                if (initMethod) {
+                    await instance[initMethod]()
+                }
             }
-        }
 
-        return instance
+            return instance
+        } catch (error) {
+            console.error(`初始化${target.name}时发生错误`)
+            throw error
+        }
     }
 
     private async getParamInstances(target: new (...args: any[]) => {}): Promise<any[]> {
@@ -95,6 +100,23 @@ export class DIContainer {
         }
     }
 
+    loadClass(_class: new (...args: any[]) => {}) {
+        if (Reflect.getMetadata('$isComponent', _class.prototype)) {
+            this.componentSet.add(_class)
+        }
+
+        return this
+    }
+
+    loadModule(_Module: any) {
+        Object.values(_Module).filter(a => a instanceof Function)
+            .forEach((a: new (...args: any[]) => {}) => {
+                this.loadClass(a)
+            })
+
+        return this
+    }
+
     loadFile(filename: string) {
         if (require.cache[filename]) {
             return
@@ -103,10 +125,7 @@ export class DIContainer {
         if (_Module == null) {
             return
         }
-        Object.values(_Module).filter(a => a instanceof Function && Reflect.getMetadata('$isComponent', a.prototype))
-            .forEach((a: new (...args: any[]) => {}) => {
-                this.componentSet.add(a)
-            })
+        this.loadModule(_Module)
 
         return this
     }
@@ -140,19 +159,23 @@ export class DIContainer {
         let startTime = Date.now()
 
         let passed = 0
-        let faild = 0
+        let failed = 0
         let total = 0
         for (let _Class of testClassList) {
             let _prototype = _Class.prototype
             let testInstance = await this.getComponentInstanceFromFactory(_Class)
-            for (let testMethod of Reflect.getMetadata('$testMethods', _prototype)) {
+            let testMethods = Reflect.getMetadata('$testMethods', _prototype)
+            if (!testMethods) {
+                continue
+            }
+            for (let testMethod of testMethods) {
                 try {
                     await testInstance[testMethod]()
                     passed += 1
                 } catch (error) {
-                    console.error(`Test faild at ${_Class.name}.${testMethod}`)
+                    console.error(`Test failed at ${_Class.name}.${testMethod}`)
                     console.trace(error.stack)
-                    faild += 1
+                    failed += 1
                 } finally {
                     total += 1
                 }
@@ -160,8 +183,8 @@ export class DIContainer {
         }
 
         let endTime = Date.now()
-        console.log(`All tests run in ${endTime - startTime}ms`)
-        console.table([{ passed, faild, total }])
+        console.log(`All tests ran in ${endTime - startTime}ms`)
+        console.table([{ passed, failed, total }])
     }
 
     async runAsync() {

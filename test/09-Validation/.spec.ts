@@ -1,7 +1,8 @@
 import { Server } from 'http';
-import * as request from 'supertest'
-import { containerPromise } from './src/app'
+import * as request from 'supertest';
+
 import { DogBootApplication } from '../../bin';
+import { containerPromise } from './src/app';
 
 let server: Server
 
@@ -195,8 +196,8 @@ test('Range', async function () {
     }
     {
         let resp = await request(server).post('/home/index7').send({ a: '' })
-        expect(resp.status).toBe(500)
-        expect(resp.text).toBe('IllegalArgumentException')
+        expect(resp.status).toBe(200)
+        expect(resp.text).toBe('ok')
     }
     {
         let resp = await request(server).post('/home/index7').send({ a: 1 })
@@ -274,8 +275,8 @@ test('Decimal', async function () {
     }
     {
         let resp = await request(server).post('/home/index10').send({ a: '' })
-        expect(resp.status).toBe(500)
-        expect(resp.text).toBe('IllegalArgumentException')
+        expect(resp.status).toBe(200)
+        expect(resp.text).toBe('ok')
     }
     {
         let resp = await request(server).post('/home/index10').send({ a: 1 })
@@ -386,6 +387,24 @@ test('Func', async function () {
     }
     {
         let resp = await request(server).post('/home/index14').send({ a: 'admin' })
+        expect(resp.status).toBe(200)
+        expect(resp.text).toBe('ok')
+    }
+})
+
+test('ActionParamValidator', async function () {
+    {
+        let resp = await request(server).get('/home/index15')
+        expect(resp.status).toBe(500)
+        expect(resp.text).toBe('id不可为空')
+    }
+    {
+        let resp = await request(server).get('/home/index15?id=1')
+        expect(resp.status).toBe(500)
+        expect(resp.text).toBe('id最小值为2')
+    }
+    {
+        let resp = await request(server).get('/home/index15?id=2')
         expect(resp.status).toBe(200)
         expect(resp.text).toBe('ok')
     }

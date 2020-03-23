@@ -13,12 +13,12 @@ export declare class Utils {
      */
     static getAllFileListInDir(dirPath: string): string[];
     /**
-     * 获取指定文件夹下所有文件列表，不包含文件夹以及子文件夹内的文件
+     * 获取指定文件夹下所有子文件夹，不包含文件夹以及子文件夹内的文件
      * @param dirPath 指定的文件夹
      */
     static getDirListInDir(dirPath: string): string[];
     /**
-     * 获取指定文件夹下的所有子文件夹，不包含文件以及子文件夹内的文件夹
+     * 获取指定文件夹下的所有文件列表，不包含文件以及子文件夹内的文件夹
      * @param dirPath 指定的文件夹
      */
     static getFileListInDir(dirPath: string): string[];
@@ -56,4 +56,5 @@ export declare class Utils {
      * @param originalVal 原始对象
      */
     static getTypeSpecifiedValueArray<T>(type: Function | (new (...args: any[]) => T), originalVal: any[], valIfNull?: T[]): T[];
+    static formatDate(dt: Date, format: string): string;
 }

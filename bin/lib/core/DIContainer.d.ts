@@ -24,6 +24,8 @@ export declare class DIContainer {
     private createComponentInstance;
     private getParamInstances;
     private resolveAutowiredDependences;
+    loadClass(_class: new (...args: any[]) => {}): this;
+    loadModule(_Module: any): this;
     loadFile(filename: string): this;
     loadDir(dir: string): this;
     getComponentsByTag(tag: string): (new (...args: any[]) => {})[];

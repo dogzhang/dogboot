@@ -1,4 +1,6 @@
-import { BindBody, Controller, GetMapping, PostMapping } from '../../../../bin/index';
+import {
+    BindBody, BindQuery, Controller, GetMapping, Min, NotNull, PostMapping
+} from '../../../../bin/index';
 import { Index10IM } from '../model/home/Index10IM';
 import { Index11IM } from '../model/home/Index11IM';
 import { Index12IM } from '../model/home/Index12IM';
@@ -83,6 +85,11 @@ export class HomeController {
 
     @PostMapping()
     async index14(@BindBody im: Index14IM) {
+        return 'ok'
+    }
+
+    @GetMapping()
+    async index15(@BindQuery('id') @NotNull('id不可为空') @Min(2, 'id最小值为2') id: number) {
         return 'ok'
     }
 }

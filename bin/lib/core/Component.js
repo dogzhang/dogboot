@@ -40,8 +40,8 @@ function GlobalActionFilter(opts) {
     return function (target) {
         var _a, _b;
         opts = opts || {};
-        opts.order = (_a = opts.order, (_a !== null && _a !== void 0 ? _a : 0));
-        opts.scope = (_b = opts.scope, (_b !== null && _b !== void 0 ? _b : '/'));
+        opts.order = (_a = opts.order) !== null && _a !== void 0 ? _a : 0;
+        opts.scope = (_b = opts.scope) !== null && _b !== void 0 ? _b : '/';
         Reflect.defineMetadata('$isGlobalActionFilter', true, target.prototype);
         Reflect.defineMetadata('$order', opts.order, target.prototype);
         Reflect.defineMetadata('$scope', opts.scope, target.prototype);
@@ -69,7 +69,7 @@ function GlobalExceptionFilter(opts) {
     return function (target) {
         var _a;
         opts = opts || {};
-        opts.scope = (_a = opts.scope, (_a !== null && _a !== void 0 ? _a : '/'));
+        opts.scope = (_a = opts.scope) !== null && _a !== void 0 ? _a : '/';
         Reflect.defineMetadata('$isGlobalExceptionFilter', true, target.prototype);
         Reflect.defineMetadata('$scope', opts.scope, target.prototype);
         Utils_1.Utils.markAsComponent(target);

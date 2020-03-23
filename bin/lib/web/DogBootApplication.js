@@ -26,7 +26,6 @@ const koaStatic = require("koa-static");
 const cors = require("koa2-cors");
 const core_1 = require("../core");
 const ActionFilterContext_1 = require("./ActionFilterContext");
-const APIDocController_1 = require("./APIDocController");
 const DogBootOptions_1 = require("./DogBootOptions");
 const LazyResult_1 = require("./LazyResult");
 const NotFoundException_1 = require("./NotFoundException");
@@ -39,7 +38,6 @@ let DogBootApplication = class DogBootApplication {
     init() {
         return __awaiter(this, void 0, void 0, function* () {
             this.build();
-            this.buildApidoc();
             this.useNotFoundExceptionHandler();
             let port = this.opts.port;
             if (process.env.dogPort) {
@@ -49,14 +47,21 @@ let DogBootApplication = class DogBootApplication {
             yield this.initControllers();
             yield this.initFilters();
             let endTime = Date.now();
-            console.log(`Your application has started at ${port} in ${endTime - this.container.startTime}ms`);
+            let nowStr = core_1.Utils.formatDate(new Date(), 'yyyy-MM-dd HH:mm:ss');
+            console.log(`[${nowStr}] Your application has started at ${port} in ${endTime - this.container.startTime}ms`);
             return this;
         });
     }
     build() {
         let publicRootPath = path.join(core_1.Utils.getAppRootPath(), 'public');
         this.app.use(koaStatic(publicRootPath));
-        this.app.use(koaBody());
+        this.app.use(koaBody({
+            jsonLimit: 100 * 1024 * 1024,
+            multipart: true,
+            formidable: {
+                maxFileSize: 100 * 1024 * 1024
+            }
+        }));
         if (this.opts.enableCors) {
             this.app.use(cors(this.opts.corsOptions));
         }
@@ -86,13 +91,7 @@ let DogBootApplication = class DogBootApplication {
                 yield this.handleContext(actionName, _Class, ctx);
             }
             catch (err) {
-                let filtersOnController = Reflect.getMetadata('$exceptionFilters', _prototype) || [];
-                let filtersOnAction = Reflect.getMetadata('$exceptionFilters', _prototype, actionName) || [];
-                let filters = this.container.getComponentsByTag('$isGlobalExceptionFilter').concat(filtersOnController, filtersOnAction).reverse();
-                let [exceptionFilter, handlerName] = this.getExceptionHandlerName(err.constructor, ctx.path, filters);
-                if (!handlerName) {
-                    [exceptionFilter, handlerName] = this.getExceptionHandlerName(Error, ctx.path, filters);
-                }
+                let [exceptionFilter, handlerName] = this.getExceptionFilterAndHandlerName(_prototype, actionName, err.constructor, ctx.path);
                 if (!handlerName) {
                     throw err;
                 }
@@ -100,12 +99,23 @@ let DogBootApplication = class DogBootApplication {
             }
         }));
     }
+    getExceptionFilterAndHandlerName(_prototype, actionName, errConstructor, ctxPath) {
+        let filtersOnController = Reflect.getMetadata('$exceptionFilters', _prototype) || [];
+        let filtersOnAction = Reflect.getMetadata('$exceptionFilters', _prototype, actionName) || [];
+        let filters = this.container.getComponentsByTag('$isGlobalExceptionFilter').concat(filtersOnController, filtersOnAction).reverse();
+        let [exceptionFilter, handlerName] = this.getExceptionHandlerName(errConstructor, ctxPath, filters);
+        if (!handlerName) {
+            [exceptionFilter, handlerName] = this.getExceptionHandlerName(Error, ctxPath, filters);
+        }
+        return [exceptionFilter, handlerName];
+    }
     handleContext(actionName, _Class, ctx) {
         return __awaiter(this, void 0, void 0, function* () {
             let _prototype = _Class.prototype;
             let instance = yield this.container.getComponentInstanceFromFactory(_prototype.constructor);
             let $params = Reflect.getMetadata('$params', _prototype, actionName) || []; //使用@Bind...注册的参数，没有使用@Bind...装饰的参数将保持为null
             let $paramTypes = Reflect.getMetadata('design:paramtypes', _prototype, actionName) || []; //全部的参数类型
+            let $paramValidators = Reflect.getMetadata('$paramValidators', _prototype, actionName) || []; //全部的参数验证器
             let params = $params.map((b, idx) => {
                 let originalValArr = b(ctx);
                 let originalVal = originalValArr[0];
@@ -118,18 +128,27 @@ let DogBootApplication = class DogBootApplication {
                     return originalVal;
                 }
             });
+            /**
+             * 验证Action内参数
+             */
+            for (let i = 0; i < params.length; i++) {
+                let validators = $paramValidators[i];
+                if (validators == null) {
+                    continue;
+                }
+                for (let validator of validators) {
+                    validator(params[i]);
+                }
+            }
+            /**
+             * 验证Action外参数
+             */
             for (let b of params) {
                 core_1.Utils.validateModel(b);
             }
             let actionFilterContext = new ActionFilterContext_1.ActionFilterContext(ctx, params, $paramTypes, _Class, actionName);
-            let filtersOnController = Reflect.getMetadata('$actionFilters', _prototype) || [];
-            let filtersOnAction = Reflect.getMetadata('$actionFilters', _prototype, actionName) || [];
-            let globalActionFilters = this.getGlobalActionFiltersOfThisPath(ctx.path);
-            let filters = globalActionFilters.concat(filtersOnController, filtersOnAction);
-            let filterAndInstances = [];
-            for (let filter of filters) {
-                let filterInstance = yield this.container.getComponentInstanceFromFactory(filter);
-                filterAndInstances.push([filter, filterInstance]);
+            let filterAndInstances = yield this.getFilterAndInstances(_prototype, actionName, ctx.path);
+            for (let [filter, filterInstance] of filterAndInstances) {
                 let handlerName = Reflect.getMetadata('$actionHandlerMap', filter.prototype).get(core_1.DoBefore);
                 if (!handlerName) {
                     continue;
@@ -157,6 +176,20 @@ let DogBootApplication = class DogBootApplication {
                 }
                 yield filterInstance[handlerName](actionFilterContext);
             }
+        });
+    }
+    getFilterAndInstances(_prototype, actionName, ctxPath) {
+        return __awaiter(this, void 0, void 0, function* () {
+            let filtersOnController = Reflect.getMetadata('$actionFilters', _prototype) || [];
+            let filtersOnAction = Reflect.getMetadata('$actionFilters', _prototype, actionName) || [];
+            let globalActionFilters = this.getGlobalActionFiltersOfThisPath(ctxPath);
+            let filters = globalActionFilters.concat(filtersOnController, filtersOnAction);
+            let filterAndInstances = [];
+            for (let filter of filters) {
+                let filterInstance = yield this.container.getComponentInstanceFromFactory(filter);
+                filterAndInstances.push([filter, filterInstance]);
+            }
+            return filterAndInstances;
         });
     }
     getGlobalActionFiltersOfThisPath(path) {
@@ -212,12 +245,6 @@ let DogBootApplication = class DogBootApplication {
             }
         });
     }
-    buildApidoc() {
-        if (!this.opts.enableApidoc) {
-            return;
-        }
-        this.checkControllerClass(APIDocController_1.APIDocController);
-    }
     useNotFoundExceptionHandler() {
         this.app.use((ctx) => __awaiter(this, void 0, void 0, function* () {
             let globalExceptionFilters = this.container.getComponentsByTag('$isGlobalExceptionFilter');
@@ -235,6 +262,18 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
 ], DogBootApplication.prototype, "init", null);
+__decorate([
+    core_1.InnerCachable({ keys: [[0, ''], [1, ''], [2, ''], [3, '']] }),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, Object, String]),
+    __metadata("design:returntype", Array)
+], DogBootApplication.prototype, "getExceptionFilterAndHandlerName", null);
+__decorate([
+    core_1.InnerCachable({ keys: [[0, ''], [1, ''], [2, '']] }),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, String]),
+    __metadata("design:returntype", Promise)
+], DogBootApplication.prototype, "getFilterAndInstances", null);
 __decorate([
     core_1.InnerCachable({ keys: [[0, '']] }),
     __metadata("design:type", Function),

@@ -2,7 +2,6 @@ import { CorsOptions } from './CorsOptions';
 export declare class DogBootOptions {
     port?: number;
     prefix?: string;
-    enableApidoc?: boolean;
     /**
      * 是否允许跨域
      */

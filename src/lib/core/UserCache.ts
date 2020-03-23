@@ -1,37 +1,58 @@
-import { BaseCache, CacheOptions } from './BaseCache';
-import { getContainer } from './DIContainer';
+import { CacheNode } from './CacheNode';
 import { Utils } from './Utils';
 
-export function Cachable(opts: { name?: string, keys?: [number, string][], maxAge?: number } = { name: null, keys: [], maxAge: null }) {
+/**
+ * 应用级别缓存选项
+ */
+export class CachableOption {
+    /**
+     * 缓存名称，为空的话，使用class.name + methodName
+     */
+    name?: string
+
+    /**
+     * 从参数中选取的key列表，[参数序号（从0开始）, 取值节点（比如：a.b）][]
+     */
+    keys?: [number, string][]
+
+    /**
+     * 缓存时长，单位：毫秒，默认为空，表示永久有效
+     */
+    maxAge?: number
+}
+
+/**
+ * 应用级别的缓存，应用开发可以使用此缓存
+ * @param opts 
+ */
+export function Cachable(opts?: CachableOption) {
     return function (target: any, name: string, desc: PropertyDescriptor) {
-        opts.name = opts.name || `${target.constructor.name}:${name}`
-        opts.keys = opts.keys || []
+        opts = opts ?? new CachableOption()
+        opts.keys = opts.keys ?? []
 
         let func = desc.value
-        desc.value = async function () {
+        desc.value = function () {
             let keys = opts.keys.map(a => Utils.getValBySectionStr(arguments[a[0]], a[1]))
-            let result = getCache().getByNameAndKeys(opts.name, keys)
+            if (opts.name) {
+                keys.unshift(opts.name)
+            } else {
+                keys.unshift(name)
+                keys.unshift(target.constructor.name)
+            }
+            let result = getCache().get(...keys)
             if (result == null) {
-                result = await func.apply(this, arguments)
-                getCache().setByNameAndKeys(opts.name, keys, result, opts.maxAge)
+                result = func.apply(this, arguments)
+                getCache().set(result, opts.maxAge, ...keys)
             }
             return result
         }
     }
 }
 
-class UserCache extends BaseCache {
-    constructor() {
-        let opts = Utils.getConfigValue(CacheOptions)
-        super(opts)
-        getContainer().setComponentInstance(UserCache, this)
-    }
-}
-
-let _instance: UserCache
+let _instance: CacheNode
 export function getCache() {
     if (_instance == null) {
-        _instance = new UserCache()
+        _instance = new CacheNode()
     }
     return _instance
 }

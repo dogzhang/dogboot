@@ -1,47 +1,46 @@
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 Object.defineProperty(exports, "__esModule", { value: true });
-const BaseCache_1 = require("./BaseCache");
-const DIContainer_1 = require("./DIContainer");
+const CacheNode_1 = require("./CacheNode");
 const Utils_1 = require("./Utils");
-function Cachable(opts = { name: null, keys: [], maxAge: null }) {
+/**
+ * 应用级别缓存选项
+ */
+class CachableOption {
+}
+exports.CachableOption = CachableOption;
+/**
+ * 应用级别的缓存，应用开发可以使用此缓存
+ * @param opts
+ */
+function Cachable(opts) {
     return function (target, name, desc) {
-        opts.name = opts.name || `${target.constructor.name}:${name}`;
-        opts.keys = opts.keys || [];
+        var _a;
+        opts = opts !== null && opts !== void 0 ? opts : new CachableOption();
+        opts.keys = (_a = opts.keys) !== null && _a !== void 0 ? _a : [];
         let func = desc.value;
         desc.value = function () {
-            return __awaiter(this, arguments, void 0, function* () {
-                let keys = opts.keys.map(a => Utils_1.Utils.getValBySectionStr(arguments[a[0]], a[1]));
-                let result = getCache().getByNameAndKeys(opts.name, keys);
-                if (result == null) {
-                    result = yield func.apply(this, arguments);
-                    getCache().setByNameAndKeys(opts.name, keys, result, opts.maxAge);
-                }
-                return result;
-            });
+            let keys = opts.keys.map(a => Utils_1.Utils.getValBySectionStr(arguments[a[0]], a[1]));
+            if (opts.name) {
+                keys.unshift(opts.name);
+            }
+            else {
+                keys.unshift(name);
+                keys.unshift(target.constructor.name);
+            }
+            let result = getCache().get(...keys);
+            if (result == null) {
+                result = func.apply(this, arguments);
+                getCache().set(result, opts.maxAge, ...keys);
+            }
+            return result;
         };
     };
 }
 exports.Cachable = Cachable;
-class UserCache extends BaseCache_1.BaseCache {
-    constructor() {
-        let opts = Utils_1.Utils.getConfigValue(BaseCache_1.CacheOptions);
-        super(opts);
-        DIContainer_1.getContainer().setComponentInstance(UserCache, this);
-    }
-}
 let _instance;
 function getCache() {
     if (_instance == null) {
-        _instance = new UserCache();
+        _instance = new CacheNode_1.CacheNode();
     }
     return _instance;
 }

@@ -1,7 +1,8 @@
 import { Server } from 'http';
-import * as request from 'supertest'
-import { containerPromise } from './src/app'
+import * as request from 'supertest';
+
 import { DogBootApplication } from '../../bin';
+import { containerPromise } from './src/app';
 
 let server: Server
 

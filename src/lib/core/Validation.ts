@@ -1,3 +1,4 @@
+import { IllegalActionArgumentException } from './IllegalActionArgumentException';
 import { IllegalArgumentException } from './IllegalArgumentException';
 
 /**
@@ -14,17 +15,29 @@ export function Valid(target: any, name: string) {
  * @param func 验证规则
  */
 export function Func(func: (arg0: any) => [boolean, string?]) {
-    return function (target: any, name: string) {
-        let $validator = Reflect.getMetadata('$validator', target) || {}
-        $validator[name] = $validator[name] || []
-        $validator[name].push(a => {
-            let result = func(a)
-            if (!result[0]) {
-                throw new IllegalArgumentException(result[1], target.constructor.name, name)
-            }
-        })
+    return function (target: any, name: string, index?: number) {
+        if (index == null) {
+            let $validator = Reflect.getMetadata('$validator', target) || {}
+            $validator[name] = $validator[name] || []
+            $validator[name].push((a: any) => {
+                let result = func(a)
+                if (!result[0]) {
+                    throw new IllegalArgumentException(result[1], target.constructor.name, name)
+                }
+            })
 
-        Reflect.defineMetadata('$validator', $validator, target)
+            Reflect.defineMetadata('$validator', $validator, target)
+        } else {
+            let $paramValidators = Reflect.getMetadata('$paramValidators', target, name) || []
+            $paramValidators[index] = $paramValidators[index] || []
+            $paramValidators[index].push((a: any) => {
+                let result = func(a)
+                if (!result[0]) {
+                    throw new IllegalActionArgumentException(result[1], target.constructor.name, name, index)
+                }
+            })
+            Reflect.defineMetadata('$paramValidators', $paramValidators, target, name)
+        }
     }
 }
 

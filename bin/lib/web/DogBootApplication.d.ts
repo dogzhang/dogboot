@@ -13,13 +13,14 @@ export declare class DogBootApplication {
     private build;
     private checkControllerClass;
     private checkAndHandleActionName;
+    private getExceptionFilterAndHandlerName;
     private handleContext;
+    private getFilterAndInstances;
     getGlobalActionFiltersOfThisPath(path: string): (new (...args: any[]) => {})[];
     private getExceptionHandlerName;
     private isThisPathInScope;
     private handlerException;
     private initControllers;
     private initFilters;
-    private buildApidoc;
     private useNotFoundExceptionHandler;
 }

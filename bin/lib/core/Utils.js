@@ -40,7 +40,7 @@ class Utils {
         return fileList;
     }
     /**
-     * 获取指定文件夹下所有文件列表，不包含文件夹以及子文件夹内的文件
+     * 获取指定文件夹下所有子文件夹，不包含文件夹以及子文件夹内的文件
      * @param dirPath 指定的文件夹
      */
     static getDirListInDir(dirPath) {
@@ -52,7 +52,7 @@ class Utils {
         });
     }
     /**
-     * 获取指定文件夹下的所有子文件夹，不包含文件以及子文件夹内的文件夹
+     * 获取指定文件夹下的所有文件列表，不包含文件以及子文件夹内的文件夹
      * @param dirPath 指定的文件夹
      */
     static getFileListInDir(dirPath) {
@@ -172,10 +172,16 @@ class Utils {
         switch (type) {
             case Number:
             case Boolean:
+                if (sourceVal === '') {
+                    return null;
+                }
                 return type(sourceVal);
             case String:
                 return type(sourceVal).trim();
             case Date:
+                if (sourceVal === '') {
+                    return null;
+                }
                 return new Date(sourceVal);
             default:
                 let newVal = Reflect.construct(type, []);
@@ -214,6 +220,20 @@ class Utils {
             return valIfNull;
         }
         return originalVal.map(a => this.getTypeSpecifiedValue(type, a));
+    }
+    static formatDate(dt, format) {
+        let result = {};
+        result.yyyy = dt.getFullYear();
+        result.MM = dt.getMonth() + 1;
+        result.dd = dt.getDate();
+        result.HH = dt.getHours();
+        result.mm = dt.getMinutes();
+        result.ss = dt.getSeconds();
+        let _result = format;
+        for (let p in result) {
+            _result = _result.replace(p, result[p].toString().padStart(p.length, '0'));
+        }
+        return _result;
     }
 }
 exports.Utils = Utils;
