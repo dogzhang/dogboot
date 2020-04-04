@@ -157,37 +157,57 @@ export class DIContainer {
         if (testClassList.length == 0) {
             return
         }
+        let onlyList = testClassList.filter(a => Reflect.getMetadata('$only', a.prototype) == true)
+        if (onlyList.length > 0) {
+            testClassList = onlyList
+        }
 
         console.log('Running tests...')
         let startTime = Date.now()
 
-        let passed = 0
-        let failed = 0
-        let total = 0
+        let failCount = 0
+        let results: { name: string, passed: boolean, error?: Error | any, period?: number }[] = []
         for (let _Class of testClassList) {
             let _prototype = _Class.prototype
             let testInstance = await this.getComponentInstanceFromFactory(_Class)
-            let testMethods = Reflect.getMetadata('$testMethods', _prototype)
-            if (!testMethods) {
+            let testMethods: string[] = Reflect.getMetadata('$testMethods', _prototype)
+            if (!testMethods || testMethods.length == 0) {
                 continue
             }
+            let onlyMethods = testMethods.filter(a => Reflect.getMetadata('$only', _prototype, a) == true)
+            if (onlyMethods.length > 0) {
+                testMethods = onlyMethods
+            }
             for (let testMethod of testMethods) {
+                let result: { name: string, passed: boolean, error?: Error | any, period?: number } = {
+                    name: _Class.name + '/' + testMethod,
+                    passed: false
+                }
+                let startTime = Date.now()
                 try {
                     await testInstance[testMethod]()
-                    passed += 1
+                    result.passed = true
                 } catch (error) {
-                    console.error(`Test failed at ${_Class.name}.${testMethod}`)
-                    console.trace(error.stack)
-                    failed += 1
+                    result.passed = false
+                    result.error = error
+                    failCount += 1
                 } finally {
-                    total += 1
+                    let endTime = Date.now()
+                    let ts = endTime - startTime
+                    result.period = ts
+                    results.push(result)
                 }
             }
         }
 
         let endTime = Date.now()
-        console.log(`All tests ran in ${endTime - startTime}ms`)
-        console.table([{ passed, failed, total }])
+        results.forEach(a => {
+            console.log(`%c${a.passed ? 'PASS' : 'FAIL'}`, ` ${a.passed ? 'background: #00ff00;' : 'background: #ff0000; color: #fff'};`, `${a.name} in ${a.period}ms`)
+            if (a.error) {
+                console.error(a.error.stack)
+            }
+        })
+        console.log(`All tests ran in ${endTime - startTime}ms, total: ${results.length}, pass: ${results.length - failCount}, ${failCount > 0 ? '%c' : ''}fail: ${failCount}`, ...(failCount > 0 ? ['background: #ff0000; color: #fff'] : ''))
     }
 
     async runAsync() {

@@ -101,3 +101,7 @@ export declare function Test(target: new (...args: any[]) => {}): void;
  * 仅能在Test类中使用
  */
 export declare function Spec(target: any, name: string): void;
+/**
+ * 标记一个类或者方法，表示此类/方法唯一，dogboot的测试功能会检测only，当有任何类/方法被标记为only，测试将会跳过同一级别其他对象
+ */
+export declare function Only(target: any, name?: string): void;

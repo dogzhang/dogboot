@@ -221,4 +221,17 @@ function Spec(target, name) {
     Reflect.defineMetadata('$testMethods', $testMethods, target);
 }
 exports.Spec = Spec;
+/**
+ * 标记一个类或者方法，表示此类/方法唯一，dogboot的测试功能会检测only，当有任何类/方法被标记为only，测试将会跳过同一级别其他对象
+ */
+function Only(target, name = null) {
+    if (name == null) {
+        Reflect.defineMetadata('$only', true, target.prototype);
+    }
+    else {
+        Reflect.defineMetadata('$only', true, target, name);
+        Reflect.defineMetadata('$only', true, target);
+    }
+}
+exports.Only = Only;
 //# sourceMappingURL=Component.js.map
