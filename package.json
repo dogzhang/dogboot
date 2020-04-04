@@ -31,13 +31,11 @@
   },
   "homepage": "https://github.com/dogzhang/dogboot#readme",
   "dependencies": {
-    "chokidar": "^3.3.1",
     "koa": "^2.11.0",
     "koa-body": "^4.1.1",
     "koa-router": "^7.4.0",
     "koa-static": "^5.0.0",
     "koa2-cors": "^2.0.6",
-    "lru-cache": "^5.1.1",
     "reflect-metadata": "^0.1.13"
   },
   "devDependencies": {
@@ -46,13 +44,11 @@
     "@types/koa-router": "^7.4.0",
     "@types/koa-static": "^4.0.1",
     "@types/koa2-cors": "^2.0.1",
-    "@types/lru-cache": "^5.1.0",
     "@types/node": "^11.15.7",
     "@types/supertest": "^2.0.8",
     "jest": "^24.9.0",
     "supertest": "^4.0.2",
     "ts-jest": "^24.3.0",
-    "ts-node": "^8.6.2",
     "typescript": "^3.8.3"
   },
   "jest": {
