@@ -157,6 +157,9 @@ class DIContainer {
     }
     test() {
         return __awaiter(this, void 0, void 0, function* () {
+            if (process.argv.includes('-t') == false) {
+                return;
+            }
             let testClassList = this.getComponentsByTag('$isTest');
             if (testClassList.length == 0) {
                 return;
