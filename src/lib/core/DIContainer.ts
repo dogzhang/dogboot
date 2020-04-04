@@ -150,6 +150,9 @@ export class DIContainer {
     }
 
     private async test() {
+        if (process.argv.includes('-t') == false) {
+            return
+        }
         let testClassList = this.getComponentsByTag('$isTest')
         if (testClassList.length == 0) {
             return
